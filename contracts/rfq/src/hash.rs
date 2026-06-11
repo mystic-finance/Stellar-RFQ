@@ -40,25 +40,16 @@ pub fn limit_order_hash(env: &Env, order: &LimitOrder) -> BytesN<32> {
 // `ed25519_sign(secret, SHA256(PREFIX || message))`, so the contract verifies
 // the same digest rather than the raw order hash.
 const SEP53_PREFIX: &[u8] = b"Stellar Signed Message:\n";
-const HEX: &[u8; 16] = b"0123456789abcdef";
 
 /// SEP-53 signing digest over an order hash:
-/// `SHA256("Stellar Signed Message:\n" || lowercase_hex(order_hash))`.
+/// `SHA256("Stellar Signed Message:\n" || order_hash)`.
 ///
-/// The off-chain signer signs the lowercase-hex string of the order hash (the
-/// `message`), so this reproduces exactly what was signed. Hex (not base64) is
-/// used because both sides reconstruct it trivially and SEP-53 treats string
-/// messages as UTF-8.
+/// The order hash (32 raw bytes) is the SEP-53 *binary* message. Off-chain, the
+/// signer passes the order hash base64-encoded to `signMessage`; Stellar wallets
+/// base64-decode it back to the raw bytes before applying SEP-53, so this
+/// reproduces exactly what was signed (a bot signs the identical digest).
 pub fn sep53_digest(env: &Env, order_hash: &BytesN<32>) -> BytesN<32> {
-    let raw = order_hash.to_array();
-    let mut hex = [0u8; 64];
-    let mut i = 0;
-    while i < 32 {
-        hex[i * 2] = HEX[(raw[i] >> 4) as usize];
-        hex[i * 2 + 1] = HEX[(raw[i] & 0x0f) as usize];
-        i += 1;
-    }
     let mut buf = Bytes::from_slice(env, SEP53_PREFIX);
-    buf.append(&Bytes::from_slice(env, &hex));
+    buf.append(&Bytes::from_array(env, &order_hash.to_array()));
     env.crypto().sha256(&buf).to_bytes()
 }
