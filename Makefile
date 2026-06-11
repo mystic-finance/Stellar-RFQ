@@ -1,7 +1,7 @@
 NETWORK ?= testnet
 export NETWORK
 
-.PHONY: all build test wasm fmt clean setup deploy seed-demo e2e mint
+.PHONY: all build test wasm fmt clean setup deploy seed-demo e2e mint fund
 
 all: build test
 
@@ -50,3 +50,21 @@ mint:
 	stellar contract invoke --id $$RFQA --source rfq-admin --network $(NETWORK) -- mint --to $(TO) --amount $$AMT; \
 	stellar contract invoke --id $$RFQB --source rfq-admin --network $(NETWORK) -- mint --to $(TO) --amount $$AMT; \
 	echo "Minted RFQA + RFQB to $(TO)."
+
+## Send test XLM gas to a wallet via Friendbot (testnet/futurenet only).
+##   make fund TO=G...address
+fund:
+	@test -n "$(TO)" || { echo "Usage: make fund TO=<G...address>"; exit 1; }
+	@case "$(NETWORK)" in \
+	  testnet)   FB="https://friendbot.stellar.org" ;; \
+	  futurenet) FB="https://friendbot-futurenet.stellar.org" ;; \
+	  *) echo "Friendbot is testnet/futurenet only (NETWORK=$(NETWORK)); fund mainnet manually."; exit 1 ;; \
+	esac; \
+	echo "Requesting test XLM for $(TO) via Friendbot ($(NETWORK))..."; \
+	RES=$$(curl -s "$$FB/?addr=$(TO)"); \
+	if echo "$$RES" | grep -q '"hash"\|"successful"\|"_links"'; then \
+	  echo "✓ Funded $(TO) (new accounts receive 10,000 test XLM)."; \
+	else \
+	  echo "$$RES" | jq -r '.detail // .title // "Friendbot request failed (already funded or invalid address?)."' 2>/dev/null \
+	    || echo "Friendbot request failed (already funded or invalid address?)."; \
+	fi
