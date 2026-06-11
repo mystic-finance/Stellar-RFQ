@@ -7,20 +7,20 @@
 
 ## High-Level Overview
 
-Liquidity on decentralized exchanges is either trapped in **order books** that
-fragment depth and leak value to MEV, or in **AMMs** that price tokenized real‑world
-assets (RWAs) and long‑tail pairs poorly. The institutional answer is **RFQ (Request‑for‑Quote)**: a taker asks for a price, multiple **market makers compete** with *signed, gas‑free* off‑chain orders, and the best
-quote settles atomically on‑chain. The result is tight pricing, no gas spent on bidding, and
-no public‑mempool exposure.
+Either liquidity on DEXs is locked away in **order books**, where depth is fragmented
+and MEV drains value, or it lives in **AMMs**, which inefficiently price tokenized
+real-world assets (RWAs) and long-tail pairs. The solution for institutions comes in the
+form of an **RFQ (Request-for-Quote)**, wherein the taker receives a quote from competing
+**market makers** via off-chain orders signed by the market makers, who then settle the order atomically on chain. The result: tightly quoted prices, no gas on bids, and no risk of leaking price information to the mempool.
 
-**Stellar currently doesn't have a settlement layer for RFQ.** Octarine brings it to the Stellar
-ecosystem as a complete RFQ swap & auction marketplace built on **Soroban**: a
-user submits a swap, the platform runs a short competitive bid auction among
-market makers, and the winning maker‑signed order is filled in a single atomic
-transaction, moving both legs and routing the protocol fee.
+**Stellar currently lacks a settlement layer for RFQ.** Octarine delivers it to Stellar via
+a full RFQ-based swap and auction market running on **Soroban**: the user initiates a
+swap offer, a competitive bid auction is executed against market makers, and the top
+market-maker-signed quote is fulfilled atomically as one transaction with both legs
+executed, as well as the protocol fee routed.
 
-Unlike a proposal on paper, **this is already working on Stellar testnet today** and deployed at `CAPVBMQBVQVDFDWFGH4M3EJH7CYM7MWIYE5TOYTYASOU26L2Q4T2YJZW`. This document describes the production
-architecture — smart contracts, coordination backend, and wallet‑native frontend.
+Not just an idea on the page, **the Octarine RFQ market is live today on Stellar testnet** at the address `CAPVBMQBVQVDFDWFGH4M3EJH7CYM7MWIYE5TOYTYASOU26L2Q4T2YJZW`. This doc details the production architecture: smart contracts,
+backend coordination system, and native wallet UI.
 
 ## Definitions, acronyms and abbreviations
 
