@@ -25,7 +25,6 @@ architecture — smart contracts, coordination backend, and wallet‑native fron
 ## Definitions, acronyms and abbreviations
 
 - **RFQ** – Request‑for‑Quote: a maker‑signed quote a taker fills on‑chain.
-- **Limit order** – A resting, openly‑fillable maker‑signed order carrying a fee.
 - **Maker / Market Maker (MM)** – The party quoting and signing the order (gives the maker token).
 - **Taker** – The party filling the order (gives the taker token); the swap user.
 - **Fill / Partial fill** – Executing an order fully or for a portion of its amount.
@@ -34,13 +33,12 @@ architecture — smart contracts, coordination backend, and wallet‑native fron
 - **SEP‑53** – Stellar's message‑signing standard; the analogue of EVM's EIP‑712.
 - **strkey** – Stellar's address encoding (`G…` accounts, `C…` contracts).
 - **Allowance** – A pre‑authorized spend a token grants to a spender (carries an `expiration_ledger`).
-- **Fee recipient** – The address that receives the protocol fee (skimmed from maker output).
 - **XDR** – Stellar's canonical binary serialization (used for order hashing).
 - **Soroban RPC** – The JSON‑RPC endpoint for simulating and submitting Soroban transactions.
 
 ## Architecture constraints
 
-- **Non‑custodial & keyless backend** – every value‑moving action is signed by a
+- **Non‑custodial backend** – every value‑moving action is signed by a
   user/maker wallet; the backend holds no keys and no funds.
 - **Atomic settlement** – both token legs and the fee move in one transaction or
   the whole fill reverts (no partial settlement state).
@@ -127,10 +125,6 @@ architecture — smart contracts, coordination backend, and wallet‑native fron
    ╚═══════════════════════════════════════════════════════════════════════════╝
 ```
 
-**Trust boundary.** The **only trusted component is the Soroban settlement
-contract**. The backend coordinates the order book and *assembles* operations but
-is **keyless and fundless**; the user's wallet signs everything that moves value.
-
 ## Contract Overview
 
 **Smart Contract Objective:** A Soroban contract that settles **maker‑signed RFQ
@@ -193,7 +187,7 @@ computes the proportional fill, atomically swaps the two legs via
 - **Order / bid / fill lifecycle** – `POST /swap` (create request), `POST /bid`
   (verify maker SEP‑53 signature, store competing quote), `GET /swap/:id` (best
   bids + ready‑to‑sign ops), `POST /fill` & `/approval` (record settlement).
-- **Soroban op assembly (keyless)** – Returns base64 `InvokeHostFunction`
+- **Soroban op assembly** – Returns base64 `InvokeHostFunction`
   operations (`approve` + `fill_limit_order`), the Soroban analogue of EVM
   calldata, for the wallet to execute. Never signs or holds funds.
 - **Soroban reads** – Simulates `get_*_order_hash`, `get_*_order_info`,
@@ -234,20 +228,3 @@ computes the proportional fill, atomically swaps the two legs via
   transactions during development.
 - **KYC / Compliance provider** *(roadmap)* – Gating for regulated assets, mirrored
   from the existing EVM compliance hooks.
-
----
-
-# Status & Roadmap
-
-**Built and verified on testnet:** RFQ + limit settlement contracts (SEP‑53
-signing, partial fills, fee‑from‑maker‑output, cancellation, fill‑or‑kill,
-upgradeability); NestJS order/bid/fill API as a peer to the EVM chains; React UI
-with xBull/Freighter and a live `swap → competitive bid → on‑chain fill`.
-
-**Next:** mainnet deployment + security audit · multi‑maker aggregation &
-best‑price routing · standing/recurring orders · protocol‑fee treasury ·
-contract‑events indexer for a trade feed · public SDK + reference market‑maker bot.
-
-*Repository: `contracts/rfq` (settlement), `contracts/test_token` (SEP‑41 demo
-token), `scripts/` (build/deploy/seed via stellar‑cli),
-`deployments/<network>.json` (addresses).*
