@@ -34,7 +34,7 @@ A super simple version of this is **already working on Stellar Testnet today**, 
 - **XDR** – Stellar's canonical binary serialization (used for order hashing).
 - **Soroban RPC** – The JSON‑RPC endpoint for simulating and submitting Soroban transactions.
 
-## Architecture
+## Architecture constraints
 
 - **Non‑custodial & keyless backend** – every value‑changing action is signed by a
   maker wallet; the backend holds no keys and no funds.
@@ -51,24 +51,24 @@ A super simple version of this is **already working on Stellar Testnet today**, 
 
 # Architecture Overview
 
-## C4 L1 Diagram: High-Level Architecture (System Context)
-d
+## High-Level Architecture (System Context)
+
 ```
 
 
           Taker                                            Maker
-   swaps assets via a wallet                   quotes & signs orders (bot / desk)
+   swaps assets via a wallet                   quotes & signs orders (bot / wallet)
 
-            │  uses                                          │  posts signed bids
+            │  submits trade request                         │  posts signed bids
             └────────────────────┐          ┌────────────────┘
                                   ▼          ▼
 
           ╔═══════════════════════════════════════════════════════╗
-          ║                    OCTARINE  PLATFORM                  ║
-          ║                                                        ║
-          ║      RFQ swap & auction marketplace — runs the         ║
-          ║      bid auction and settles trades on Soroban.        ║
-          ╚════════════╤═══════════════╤════════════════╤══════════╝
+          ║                    OCTARINE  PLATFORM                 ║
+          ║                                                       ║
+          ║      RFQ for RWA liquidations — runs the              ║
+          ║      auction and settles trades on Soroban.           ║
+          ╚════════════╤═══════════════╤════════════════╤═════════╝
                        │               │                │
            signs tx &  │     token     │    identity    │
            messages    │   transfers   │   (optional)   │
@@ -76,10 +76,10 @@ d
 
        Stellar Wallets Kit      SEP-41 Token        KYC / Compliance
        (xBull, Freighter)       Contracts           Provider
-                                (maker / taker)      (roadmap)
+                                (maker / taker)      (TBD)
 ```
 
-## C4 L2 Diagram: Zoom into the Octarine System (Containers)
+## Zoom into the Octarine System (Containers)
 
 ```
        Taker                                                 Maker
@@ -94,7 +94,7 @@ d
    ║   │  React / Vite            │────────▶│  NestJS (TypeScript)           │  ║
    ║   │                          │         │                                │  ║
    ║   │  • Stellar Wallets Kit   │◀────────│  • swap / bid / fill API       │  ║
-   ║   │  • swap · auctions ·     │ signed  │  • bid auction & matching      │  ║
+   ║   │  • swap · auctions ·     │ signed  │  • auction & matching          │  ║
    ║   │    bid · dashboard       │ ops     │  • SEP-53 signature verify     │  ║
    ║   └────────────┬─────────────┘         │  • Soroban op assembly         │  ║
    ║                │                        │  • dispatch by chainId        │  ║
@@ -115,25 +115,25 @@ d
    ║   STELLAR / SOROBAN                                                       ║
    ║                                                                           ║
    ║   ┌───────────────────────────────────┐ transfer_from ┌─────────────────┐ ║
-   ║   │  Settlement Contract (Rust / WASM) │──────────────▶│  SEP-41 Tokens │ ║
-   ║   │  verify · fill · fee · cancel      │               │ (maker / taker)│ ║
+   ║   │  Settlement Contract              │──────────────▶│  SEP-41 Tokens │ ║
+   ║   │  verify · fill · fee · cancel     │               │ (maker / taker)│ ║
    ║   └───────────────────────────────────┘               └─────────────────┘ ║
    ╚═══════════════════════════════════════════════════════════════════════════╝
 ```
 
-**Trust boundary.** The **only trusted component is the Soroban settlement
-contract**. The backend coordinates the order book and *assembles* operations but
-is **keyless and fundless**; the user's wallet signs everything that moves value.
+**IMPORTANT** The **only on-chain component is the Soroban settlement
+contract**. The backend coordinates the bidding and auction process and since it's offchain, it holds **no keys and no funds**; the user's wallet signs every transaction that moves capital.
 
 ## Contract Overview
 
-**Smart Contract Objective:** A Soroban contract that settles **maker‑signed RFQ
-and limit orders** between two SEP‑41 tokens. It verifies the maker's signature,
+A Soroban contract that settles **maker‑signed orders** between two SEP‑41 tokens. It verifies the maker's signature,
 computes the proportional fill, atomically swaps the two legs via
 `transfer_from`, and skims the protocol fee from the maker's output.
 
 **Key Functions:**
 
+- **SAC allowance** → Takers and makers must give the contract SAC allowance before it is able to take funds from their wallets.
+  remaining amount, and settles. `fill_or_kill_*` variants require an exact fill or revert.
 - **Fill (`fill_limit_order` / `fill_rfq_order`)** → Taker submits a maker‑signed
   order; the contract verifies the SEP‑53 signature, clamps the fill to the
   remaining amount, and settles. `fill_or_kill_*` variants require an exact fill or revert.
@@ -160,7 +160,7 @@ computes the proportional fill, atomically swaps the two legs via
 **Settlement flow (request → competitive bid → fill):**
 
 ```
- Taker(UI)        Backend          Maker/MM           Soroban
+ Taker             Backend          Maker              Soroban
    │ POST /swap     │                   │                 │
    ├───────────────▶│ create request    │                 │
    │ poll /swap/:id │   POST /bid  ◀────┤ build order     │
