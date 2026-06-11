@@ -1,5 +1,5 @@
-# Octarine — Technical Infrastructure Description
-## Stellar Build Application
+# Octarine 
+## Technical Infrastructure Description
 
 ---
 
