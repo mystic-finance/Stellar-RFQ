@@ -1,0 +1,19 @@
+[package]
+name = "rfq"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "0x-style RFQ + limit order on-chain settlement for Stellar Soroban"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+# Used only in tests to produce real ed25519 order signatures.
+ed25519-dalek = "2"

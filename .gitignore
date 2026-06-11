@@ -1,0 +1,11 @@
+# Rust
+/target
+**/*.rs.bk
+Cargo.lock
+
+# Deployment artifacts contain testnet secrets — keep them out of git.
+/deployments/accounts.*.json
+
+# OS / editor
+.DS_Store
+*.log

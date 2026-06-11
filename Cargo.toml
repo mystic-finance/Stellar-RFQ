@@ -1,0 +1,22 @@
+[workspace]
+resolver = "2"
+members = ["contracts/*"]
+
+[workspace.dependencies]
+soroban-sdk = "22"
+
+# Optimised build profile for on-chain WASM. Soroban contracts must be small
+# and deterministic, so we strip everything we can and abort on panic.
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true
+
+[profile.release-with-logs]
+inherits = "release"
+debug-assertions = true
