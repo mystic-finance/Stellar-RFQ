@@ -7,43 +7,41 @@
 
 ## High-Level Overview
 
-Either liquidity on DEXs is locked away in **order books**, where depth is fragmented
-and MEV drains value, or it lives in **AMMs**, which inefficiently price tokenized
-real-world assets (RWAs) and long-tail pairs. The solution for institutions comes in the
-form of an **RFQ (Request-for-Quote)**, wherein the taker receives a quote from competing
-**market makers** via off-chain orders signed by the market makers, who then settle the order atomically on chain. The result: tightly quoted prices, no gas on bids, and no risk of leaking price information to the mempool.
+Octarine is a protocol enabling instant liquidity for RWAs by auctioning liquidations with institutional LPs, third-party protocols and curated liquidity facilities.
 
-**Stellar currently lacks a settlement layer for RFQ.** Octarine delivers it to Stellar via
-a full RFQ-based swap and auction market running on **Soroban**: the user initiates a
-swap offer, a competitive bid auction is executed against market makers, and the top
-market-maker-signed quote is fulfilled atomically as one transaction with both legs
-executed, as well as the protocol fee routed.
+RWAs struggle to get DEX liquidity because they're fragmented, regulated and tend to have built-in redemption times. These are not instant, however, which means that RWAs can't be onboarded in lending, as DeFi liquidations need instant liquidity. It also doesn't allow managing leveraged loops, as users can't instantly unwind their positions. To top it all off, the absence of instant liquidity makes RWAs less attractive for prospective LPs, who can't afford to have their capital locked up unwillingly. This ultimately translates to less TVL for issuers and a total lack of RWA DeFi utility, as these assets can't be trade nor onboarded as collateral.
 
-Not just an idea on the page, **the Octarine RFQ market is live today on Stellar testnet** at the address `CAPVBMQBVQVDFDWFGH4M3EJH7CYM7MWIYE5TOYTYASOU26L2Q4T2YJZW`. This doc details the production architecture: smart contracts,
-backend coordination system, and native wallet UI.
+Octarine changes that, by giving liquidity to RWAs via auctions with LPs, third-party protocols and curated liquidity facilities. When there is a liquidation, either on Octarine or on a connected venue, Octarine detects it and auctions it with connected bidders. We then award the trade to the best bid available. Bids can come from either LPs bidding on the API or from DeFi protocols quoting prices for buying RWAs, thus ensuring the RFQ always has the best price in the market.
+
+In order to service liquidations at DeFi rates, Octarine features also a primitive enabling the curation of instant liquidity facilities, which are vaults that store deposits in liquid strategies like lending. These vaults service liquidations by calling capital from lending strategies and sending it to the user, whilst then redeeming the RWA and taking a haircut in the process. This approach makes the trade modular in DeFi and enables deep, ecosystem-wide integrations.
+
+Serves this document to outline the beginning of how Octarine is bringing this to Stellar. In particular, this codebase features a settlement mechanism enabling Octarine auctions to take place and be completed on Stellar. How it works is simple: a user submits a swap request, the platform runs a short auction amongst connected bidders and then gives the trade to the winning bid. Trade is then settled in a single atomic transaction, exchanging each party¡s assets and routing the protocol fee.
+
+A super simple version of this is **already working on Stellar Testnet today**, and deployed with the contract `CAPVBMQBVQVDFDWFGH4M3EJH7CYM7MWIYE5TOYTYASOU26L2Q4T2YJZW`. This document describes the production architecture the protocol aspires to ultimately build out — smart contracts, backend, and frontend.
 
 ## Definitions, acronyms and abbreviations
 
-- **RFQ** – Request‑for‑Quote: a maker‑signed quote a taker fills on‑chain.
-- **Maker / Market Maker (MM)** – The party quoting and signing the order (gives the maker token).
-- **Taker** – The party filling the order (gives the taker token); the swap user.
+- **RFQ** – Request‑for‑Quote: an auction sale of an asset by a maker, who creates it via a signed quote that a taker fills on‑chain.
+- **Maker** – The party bidding and signing the order (gives the maker token).
+- **Taker** – The party filling the order (gives the taker token).
 - **Fill / Partial fill** – Executing an order fully or for a portion of its amount.
-- **Soroban** – Stellar's smart‑contract platform (Rust → WASM).
+- **Soroban** – Stellar's smart contract platform.
 - **SEP‑41** – Stellar's standard token interface (`approve`, `transfer_from`, `balance`).
 - **SEP‑53** – Stellar's message‑signing standard; the analogue of EVM's EIP‑712.
 - **strkey** – Stellar's address encoding (`G…` accounts, `C…` contracts).
-- **Allowance** – A pre‑authorized spend a token grants to a spender (carries an `expiration_ledger`).
+- **Allowance** – Permission given to someone to spend a certain amount of a token (carries an `expiration_ledger`).
+- **Fee recipient** – The address that receives the protocol fee (taken from the maker's output).
 - **XDR** – Stellar's canonical binary serialization (used for order hashing).
 - **Soroban RPC** – The JSON‑RPC endpoint for simulating and submitting Soroban transactions.
 
 ## Architecture constraints
 
-- **Non‑custodial backend** – every value‑moving action is signed by a
+- **Non‑custodial & keyless backend** – every value‑moving action is signed by a
   user/maker wallet; the backend holds no keys and no funds.
 - **Atomic settlement** – both token legs and the fee move in one transaction or
   the whole fill reverts (no partial settlement state).
 - **Wallet‑ and bot‑producible signatures** – maker orders must be signable by
-  browser wallets (xBull/Freighter) *or* programmatic market makers, with one
+  browser wallets (xBull/Freighter) *or* programmatic makers, with one
   scheme (SEP‑53).
 - **Replay safety** – signatures must be bound to a specific deployment (domain
   separation) and network (SEP‑53 passphrase).
@@ -60,7 +58,7 @@ backend coordination system, and native wallet UI.
 ```
 
 
-          Taker                                          Market Maker
+          Taker                                            Maker
    swaps assets via a wallet                   quotes & signs orders (bot / desk)
 
             │  uses                                          │  posts signed bids
@@ -86,7 +84,7 @@ backend coordination system, and native wallet UI.
 ## C4 L2 Diagram: Zoom into the Octarine System (Containers)
 
 ```
-       Taker                                              Market Maker
+       Taker                                                 Maker
          │  swap                                               │  POST /bid (signed)
          ▼                                                     ▼
 
@@ -124,6 +122,10 @@ backend coordination system, and native wallet UI.
    ║   └───────────────────────────────────┘               └─────────────────┘ ║
    ╚═══════════════════════════════════════════════════════════════════════════╝
 ```
+
+**Trust boundary.** The **only trusted component is the Soroban settlement
+contract**. The backend coordinates the order book and *assembles* operations but
+is **keyless and fundless**; the user's wallet signs everything that moves value.
 
 ## Contract Overview
 
@@ -187,7 +189,7 @@ computes the proportional fill, atomically swaps the two legs via
 - **Order / bid / fill lifecycle** – `POST /swap` (create request), `POST /bid`
   (verify maker SEP‑53 signature, store competing quote), `GET /swap/:id` (best
   bids + ready‑to‑sign ops), `POST /fill` & `/approval` (record settlement).
-- **Soroban op assembly** – Returns base64 `InvokeHostFunction`
+- **Soroban op assembly (keyless)** – Returns base64 `InvokeHostFunction`
   operations (`approve` + `fill_limit_order`), the Soroban analogue of EVM
   calldata, for the wallet to execute. Never signs or holds funds.
 - **Soroban reads** – Simulates `get_*_order_hash`, `get_*_order_info`,
@@ -228,3 +230,20 @@ computes the proportional fill, atomically swaps the two legs via
   transactions during development.
 - **KYC / Compliance provider** *(roadmap)* – Gating for regulated assets, mirrored
   from the existing EVM compliance hooks.
+
+---
+
+# Status & Roadmap
+
+**Built and verified on testnet:** RFQ + limit settlement contracts (SEP‑53
+signing, partial fills, fee‑from‑maker‑output, cancellation, fill‑or‑kill,
+upgradeability); NestJS order/bid/fill API as a peer to the EVM chains; React UI
+with xBull/Freighter and a live `swap → competitive bid → on‑chain fill`.
+
+**Next:** mainnet deployment + security audit · multi‑maker aggregation &
+best‑price routing · standing/recurring orders · protocol‑fee treasury ·
+contract‑events indexer for a trade feed · public SDK + reference market‑maker bot.
+
+*Repository: `contracts/rfq` (settlement), `contracts/test_token` (SEP‑41 demo
+token), `scripts/` (build/deploy/seed via stellar‑cli),
+`deployments/<network>.json` (addresses).*
