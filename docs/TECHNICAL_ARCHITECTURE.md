@@ -52,7 +52,7 @@ A super simple version of this is **already working on Stellar Testnet today**, 
 # Architecture Overview
 
 ## C4 L1 Diagram: High-Level Architecture (System Context)
-
+d
 ```
 
 
