@@ -70,11 +70,20 @@ fn setup() -> Fixture {
 }
 
 fn sign(env: &Env, key: &SigningKey, hash: &BytesN<32>) -> Signature {
-    let sig = key.sign(&hash.to_array());
+    // Sign the SEP-53 digest (exactly what a wallet `signMessage` / a bot signs).
+    let digest = crate::hash::sep53_digest(env, hash);
+    let sig = key.sign(&digest.to_array());
     Signature {
         signer: BytesN::from_array(env, &key.verifying_key().to_bytes()),
         signature: BytesN::from_array(env, &sig.to_bytes()),
     }
+}
+
+/// Stellar `G...` account address for an ed25519 key (so the contract can
+/// recover the maker's pubkey from its address).
+fn account_address(env: &Env, key: &SigningKey) -> Address {
+    let strkey = stellar_strkey::ed25519::PublicKey(key.verifying_key().to_bytes()).to_string();
+    Address::from_string(&soroban_sdk::String::from_str(env, &strkey))
 }
 
 impl Fixture {
@@ -325,4 +334,77 @@ fn hash_is_deterministic_and_pubkey_registered() {
     assert!(f.client.is_order_signer(&f.maker, &f.maker_pubkey));
     // Sanity: contract id is a real address (keeps `contract_id` field used).
     assert_ne!(f.contract_id, f.maker);
+}
+
+#[test]
+fn sep53_digest_matches_reference() {
+    // Cross-language reference vector (computed in Node) so the contract,
+    // backend, and any bot agree on what gets signed.
+    let env = Env::default();
+    let hash = BytesN::from_array(
+        &env,
+        &[
+            0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd,
+            0xee, 0xff, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb,
+            0xcc, 0xdd, 0xee, 0xff,
+        ],
+    );
+    let digest = crate::hash::sep53_digest(&env, &hash);
+    assert_eq!(
+        digest.to_array(),
+        [
+            0x89, 0x84, 0x09, 0xd2, 0x58, 0x79, 0x9f, 0xa0, 0x9b, 0xdc, 0x2c, 0x49, 0x4e, 0x6b,
+            0x47, 0x96, 0x1c, 0xb7, 0xb9, 0xbc, 0x8f, 0x26, 0x04, 0x00, 0xf7, 0xf7, 0x5d, 0x7a,
+            0x18, 0x4b, 0x69, 0xcd,
+        ],
+    );
+}
+
+#[test]
+fn maker_own_key_fills_without_registration() {
+    // 0x parity: a maker signing its own orders needs NO register_order_signer.
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(RfqContract, ());
+    let client = RfqContractClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    // Maker is the account address derived from its own ed25519 signing key.
+    let maker_key = SigningKey::from_bytes(&[3u8; 32]);
+    let maker = account_address(&env, &maker_key);
+    let taker = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    // Custom Soroban tokens (no trustline needed for a real G... account).
+    let name = soroban_sdk::String::from_str(&env, "T");
+    let maker_token = env.register(test_token::TestToken, ());
+    let taker_token = env.register(test_token::TestToken, ());
+    let mtc = test_token::TestTokenClient::new(&env, &maker_token);
+    let ttc = test_token::TestTokenClient::new(&env, &taker_token);
+    mtc.initialize(&token_admin, &7u32, &name, &name);
+    ttc.initialize(&token_admin, &7u32, &name, &name);
+    mtc.mint(&maker, &HUGE);
+    ttc.mint(&taker, &HUGE);
+    let exp = env.ledger().sequence() + 1_000_000;
+    mtc.approve(&maker, &contract_id, &HUGE, &exp);
+    ttc.approve(&taker, &contract_id, &HUGE, &exp);
+
+    let order = RfqOrder {
+        maker_token: maker_token.clone(),
+        taker_token: taker_token.clone(),
+        maker_amount: 1_000,
+        taker_amount: 2_000,
+        maker: maker.clone(),
+        taker: None,
+        tx_origin: taker.clone(),
+        pool: BytesN::from_array(&env, &[0u8; 32]),
+        expiry: env.ledger().timestamp() + 1_000,
+        salt: 1,
+    };
+    let hash = client.get_rfq_order_hash(&order);
+    // Signed by the maker's OWN key — no registration step anywhere.
+    let sig = sign(&env, &maker_key, &hash);
+    let r = client.fill_rfq_order(&order, &sig, &taker, &2_000);
+    assert_eq!(r.taker_token_filled_amount, 2_000);
+    assert_eq!(r.maker_token_filled_amount, 1_000);
 }

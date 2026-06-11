@@ -2,9 +2,9 @@
   "network": "testnet",
   "rpcUrl": "https://soroban-testnet.stellar.org",
   "networkPassphrase": "Test SDF Network ; September 2015",
-  "deployedAt": "2026-06-11T08:47:23Z",
+  "deployedAt": "2026-06-11T16:06:26Z",
   "contracts": {
-    "rfq": "CBI6WUXX35BGPMNCL6DSWPMLMMXBJICTSRZGQVVDDUXNBUR5PLFLPJHH",
+    "rfq": "CC4DG4D2ACUNSQVDDVF32J74C635L2B5DFV2V5NDWT6BV3HVLSQKAWXY",
     "tokenA": "CCCB6QENTOHYHOLNFJ7VPTCIPUBF4BGEPNKVUZGLOLCAP466UVG6XS6J",
     "tokenB": "CBDS4YL6YEWKGC6AODFSMK5X7LI6RBV6QIWD4OFQFYHLL2T5YKPRVBGJ"
   },

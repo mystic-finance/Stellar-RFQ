@@ -31,8 +31,8 @@ mod types;
 mod test;
 
 use soroban_sdk::{
-    contract, contractimpl, panic_with_error, symbol_short, token, Address, Bytes, BytesN, Env,
-    U256,
+    contract, contractimpl, panic_with_error, symbol_short, token, xdr::ToXdr, Address, Bytes,
+    BytesN, Env, U256,
 };
 
 pub use errors::Error;
@@ -532,14 +532,41 @@ impl RfqContract {
         order_hash: &BytesN<32>,
         signature: &Signature,
     ) {
-        // Traps if the signature does not verify against the hash.
-        let message = Bytes::from_array(env, &order_hash.to_array());
+        // The maker signs the SEP-53 digest of the order hash (a wallet's
+        // `signMessage` or a bot produce the same), so verify over that digest.
+        // Traps if the signature does not verify.
+        let digest = hash::sep53_digest(env, order_hash);
+        let message = Bytes::from_array(env, &digest.to_array());
         env.crypto()
             .ed25519_verify(&signature.signer, &message, &signature.signature);
-        // The signing key must be registered to the maker.
-        if !storage::is_order_signer(env, maker, &signature.signer) {
+        // Like 0x's `signer == maker || isValidOrderSigner`: accept the maker's
+        // own account key with NO registration, or a key the maker registered as
+        // a delegated signer.
+        let signed_by_maker = match Self::maker_account_pubkey(env, maker) {
+            Some(pk) => pk == signature.signer,
+            None => false,
+        };
+        if !signed_by_maker && !storage::is_order_signer(env, maker, &signature.signer) {
             panic_with_error!(env, Error::SignerNotAuthorized);
         }
+    }
+
+    /// Recover the ed25519 public key of a maker **account** address (`G...`).
+    /// Returns `None` for contract addresses. Relies on the canonical ScVal XDR
+    /// layout of an account address:
+    /// `[SCV_ADDRESS(4)][SC_ADDRESS_TYPE_ACCOUNT(4)][PUBLIC_KEY_TYPE_ED25519(4)][pubkey(32)]`.
+    fn maker_account_pubkey(env: &Env, maker: &Address) -> Option<BytesN<32>> {
+        let xdr = maker.clone().to_xdr(env);
+        if xdr.len() != 44 {
+            return None;
+        }
+        let mut pk = [0u8; 32];
+        let mut i = 0u32;
+        while i < 32 {
+            pk[i as usize] = xdr.get(12 + i).unwrap();
+            i += 1;
+        }
+        Some(BytesN::from_array(env, &pk))
     }
 
     #[allow(clippy::too_many_arguments)]

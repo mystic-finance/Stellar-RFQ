@@ -17,3 +17,8 @@ soroban-sdk = { workspace = true }
 soroban-sdk = { workspace = true, features = ["testutils"] }
 # Used only in tests to produce real ed25519 order signatures.
 ed25519-dalek = "2"
+# Used only in tests to derive a G... account address from an ed25519 key.
+stellar-strkey = "0.0.13"
+# Trustline-free token for the maker-own-key test (real G... accounts need a
+# trustline for the SAC, but not for a custom Soroban token).
+test_token = { path = "../test_token" }
