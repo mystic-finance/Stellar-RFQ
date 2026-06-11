@@ -34,20 +34,18 @@ A super simple version of this is **already working on Stellar Testnet today**, 
 - **XDR** – Stellar's canonical binary serialization (used for order hashing).
 - **Soroban RPC** – The JSON‑RPC endpoint for simulating and submitting Soroban transactions.
 
-## Architecture constraints
+## Architecture
 
-- **Non‑custodial & keyless backend** – every value‑moving action is signed by a
-  user/maker wallet; the backend holds no keys and no funds.
-- **Atomic settlement** – both token legs and the fee move in one transaction or
+- **Non‑custodial & keyless backend** – every value‑changing action is signed by a
+  maker wallet; the backend holds no keys and no funds.
+- **Atomic settlement** – both legs of the trade and the fee being charged move in one transaction or
   the whole fill reverts (no partial settlement state).
-- **Wallet‑ and bot‑producible signatures** – maker orders must be signable by
-  browser wallets (xBull/Freighter) *or* programmatic makers, with one
-  scheme (SEP‑53).
+- **Signatures produced by wallets and/or bots** – maker orders must be signable by
+  browser wallets (xBull/Freighter) *and/or* bots/code scripts. Both done with the same scheme (SEP‑53).
 - **Replay safety** – signatures must be bound to a specific deployment (domain
   separation) and network (SEP‑53 passphrase).
 - **Token model** – assets follow **SEP‑41**; allowances are explicit and expire.
-- **Networks** – Stellar **testnet** and **mainnet** only; deterministic,
-  reproducible deploys via stellar‑cli.
+- **Networks** – Stellar **testnet** and **mainnet** only; all deployments via stellar‑cli.
 
 ---
 
@@ -230,20 +228,3 @@ computes the proportional fill, atomically swaps the two legs via
   transactions during development.
 - **KYC / Compliance provider** *(roadmap)* – Gating for regulated assets, mirrored
   from the existing EVM compliance hooks.
-
----
-
-# Status & Roadmap
-
-**Built and verified on testnet:** RFQ + limit settlement contracts (SEP‑53
-signing, partial fills, fee‑from‑maker‑output, cancellation, fill‑or‑kill,
-upgradeability); NestJS order/bid/fill API as a peer to the EVM chains; React UI
-with xBull/Freighter and a live `swap → competitive bid → on‑chain fill`.
-
-**Next:** mainnet deployment + security audit · multi‑maker aggregation &
-best‑price routing · standing/recurring orders · protocol‑fee treasury ·
-contract‑events indexer for a trade feed · public SDK + reference market‑maker bot.
-
-*Repository: `contracts/rfq` (settlement), `contracts/test_token` (SEP‑41 demo
-token), `scripts/` (build/deploy/seed via stellar‑cli),
-`deployments/<network>.json` (addresses).*
