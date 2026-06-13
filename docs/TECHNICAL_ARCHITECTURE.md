@@ -30,13 +30,13 @@ How this settlement contract works is simple: a user submits a swap request, the
 - **RFQ** – Request-for-Quote: an auction sale of an asset by a maker, who creates
   it via a signed quote (off-chain LP) or a live on-chain quote (facility / DeFi
   source) that a taker fills on-chain.
-- **Maker** – The party providing liquidity (gives the maker token — e.g. the LP
-  paying stablecoin for an RWA). May be an off-chain signer or an on-chain source.
+- **Maker** – The party providing liquidity (e.g. the LP paying stablecoin for an RWA). 
+  May be an off-chain signer or an on-chain source.
 - **Taker** – The party filling the order on-chain (gives the taker token — e.g.
-  the RWA holder seeking instant liquidity). Also called the **seller** / **user**.
+  the RWA holder seeking instant liquidity). Also called the **seller**.
 - **PMM** – Principal Market Maker: an institutional LP that bids on the RFQ with
   its own balance sheet (e.g. GSR, Auros).
-- **RFQ Router** – The on-chain contract that aggregates every bid source, picks the
+- **RFQ Router** – The on-chain contract that aggregates every bid source, picks the bid with the
   best price, and settles the winning route atomically.
 - **DEX aggregator** – The on-chain component that brings public DEX liquidity
   into the RFQ as a bid source, quoting and routing across integrated DEXes.
@@ -88,13 +88,13 @@ Three classes of liquidity compete on every trade:
 | **Curated facility** | On-chain `quote` from facility aggregator | Router swaps using facility liquidity |
 | **Third-party DEXes** | On-chain `quote` from DEX aggregator | Router swaps using DEX liquidity |
 
-The backend fetches and ranks all three, the **best price wins**, and the **RFQ router**
+The backend fetches and ranks all three, the bid with the **best price** wins, and the **RFQ router**
 settles the winning route, in one atomic transaction.
 
 ## 2.2 High-Level Architecture
 
 ```
-        Seller                                           Off-chain LP
+        Taker                                           Off-chain LP
    holds an RWA, wants instant                   quotes & SEP-53-signs maker
    liquidity                                      orders (either through a bot or through the UI)
             │  submits request                              │  POST /bid (signed)
@@ -119,12 +119,12 @@ settles the winning route, in one atomic transaction.
 
 ## 2.3 Zoom into the Octarine System (Component diagram)
 
-The off-chain platform runs the auction and hands the seller wallet-signable
+The off-chain platform runs the auction and hands the taker wallet-signable
 operations; the on-chain contracts settle the winning route. On-chain, the **RFQ
 Router** is the single front door: it draws bids from three sources — the
 **Settlement contract** (off-chain LP signed orders), the **DEX Aggregator**
-(DEX liquidity) and the **Facility Aggregator** (curated vault bids) —
-picks the best price, and settles atomically. Facilities reach their yield venues
+(DEX liquidity) and the **Facility Aggregator** (curated vault bids) and
+picks the bid with the best price, and settles atomically. Facilities reach their yield venues
 through **Adapters**.
 
 ```
@@ -189,14 +189,14 @@ Everything above the chain is off-chain.
 ## 2.4 Architecture constraints
 
 - **Non-custodial backend** — every value-changing action is signed by
-  a wallet (seller, LP, depositor) or authorised by a contract under its on-chain
+  a wallet (taker, LP, depositor) or authorised by a contract under its on-chain
   policy. The backend holds no keys and no funds.
 - **Atomic settlement** — all legs of a fill (token swap, protocol fee, and any
   venue liquidity pull) move in one transaction or the whole fill reverts. No
   partial settlement state, including across blended multi-source routes.
-- **Best-price execution with a floor** — the router selects the best bid (or blend
-  of bids) and enforces a seller-supplied minimum output; the fill reverts if the
-  seller would receive less than quoted.
+- **Best-price execution** — the router selects the best bid (or blend
+  of bids) and enforces a taker specified minimum output; the fill reverts if the
+  taker would receive less than quoted.
 - **Many bid channels, one auction** — off-chain signed orders, DEX liquidity and
   facility bids are ranked together; all settle through the same atomic transaction.
 - **Signatures produced by wallets** — maker orders must be signable
@@ -241,8 +241,7 @@ signed-bids leg beneath the router.
 - **Settlement math** → `taker_filled = min(fill, taker_amount − filled)`;
   `maker_filled = floor(taker_filled × maker_amount / taker_amount)`;
   `fee = floor(maker_filled × token_fee_amount / maker_amount)` (256-bit
-  intermediates avoid `i128` overflow). Filled state is persisted before any
-  transfer.
+  intermediates avoid `i128` overflow). Taker receives `maker_filled - fee`.
 - **Signature verification (SEP-53)** → the maker signs the order hash as a SEP-53
   message; the contract recomputes `SHA256("Stellar Signed Message:\n" ‖
   order_hash)` and `ed25519_verify`s it. A maker signing its own order needs no
@@ -250,15 +249,13 @@ signed-bids leg beneath the router.
   keys are authorised via `register_order_signer`.
 - **Cancellation** → `cancel_{rfq,limit}_order` (single) and `cancel_pair_*`
   (invalidate all of a maker's orders for a pair below a salt).
-- **Fees & MEV** → limit orders carry `token_fee_amount` → `fee_recipient`; RFQ
-  orders are `tx_origin`-gated for MEV protection.
+- **Fees** → limit orders carry `token_fee_amount` → `fee_recipient`;.
 - **Admin** → `initialize(admin)` and native `upgrade(wasm_hash)`.
 
 ## 3.2 RFQ Router
 
 A Soroban contract that aggregates every bid source for a request, selects the best
-execution, and settles the winning route atomically against a seller-set output
-floor. It composes of the settlement contract for signed bids and the DEX and facility
+execution, and settles the winning route atomically against a taker minimum output. It composes of the settlement contract for signed bids and the DEX and facility
 aggregators for on-chain liquidity, so one trade can settle against a
 single source or a blend of several.
 
@@ -268,7 +265,7 @@ single source or a blend of several.
   at the trade size and returns the list; read-only, used by the backend
   to get on-chain bids for the auction.
 - **Route & fill (`fill`)** → the taker submits the chosen route;
-  the router executes each leg, sums the seller's realised output, and asserts it
+  the router executes each leg, sums the taker's realised output, and asserts it
   meets `min_out`, reverting the whole transaction otherwise.
 - **Source registry (`register_source`)** → governance whitelists the settlement
   contract, DEX aggregator and facility aggregator as routable sources.
@@ -311,7 +308,7 @@ point the router sees for the whole facility ecosystem.
 
 A Soroban contract implementing a curated, share-based vault that keeps depositor
 funds in yield venues and bids on the RFQ with that TVL. On winning it pulls
-liquidity from its venues, pays the seller, takes the RWA, and later redeems it for
+liquidity from its venues, pays the taker, takes the RWA, and later redeems it for
 a haircut that accrues to share value net of a curator fee.
 
 **Key Functions:**
@@ -325,7 +322,7 @@ a haircut that accrues to share value net of a curator fee.
   its curator-set caps.
 - **Redeem assets for stablecoins (`redeem_for_assets`)** → called by the aggregator on a win:
   validates price and caps, pulls just enough stablecoins from venues via adapters, pays
-  the seller, takes the RWA, and books it for redemption, inside the
+  the seltakerler, takes the RWA, and books it for redemption, inside the
   router's atomic fill.
 - **Venue allocation (`allocate` / `deallocate`)** → idle stablecoins are deployed to
   whitelisted venues and pulled back on demand, bounded by each adapter's
@@ -356,18 +353,18 @@ touching the facility, aggregator, or router code.
 
 ## 4.1 Off-chain LP wins a swap (direct settlement)
 
-When a single off-chain maker wins, the seller fills the settlement contract
-directly — no router needed.
+When a single off-chain maker wins, the taker fills the settlement contract
+directly through the rfq router.
 
 ```
- Seller(taker)        Backend            LP(maker)          Settlement
+ Taker              Backend            LP(maker)          Router + Settlement
    │ POST /swap        │                   │                    │
    ├──────────────────▶│ create request    │                    │
    │                   │   POST /bid  ◀─────┤ build + sign order│
    │                   │  verify SEP-53     │ approve(stable)   │ approve()
    │ best bid + ops ◀──┤  assemble ops      │                   │
    │ sign + submit ────┼───────────────────────────────────────▶ fill_rfq_order
-   │  (wallet)         │                    │                   │  verify · swap×2 · fee
+   │  (wallet)         │                    │                   │  verify · swap · fee
    ▼                   ▼                    ▼                   ▼
         RWA: seller→LP                       stable: LP→seller (− fee)
 ```
@@ -375,10 +372,10 @@ directly — no router needed.
 ## 4.2 On-chain win via the router (DEX / facility)
 
 When DEX or facility liquidity wins, or when the best execution is a blend, the
-seller signs a single router call and the router settles every leg atomically.
+taker signs a single router call and the router settles every leg atomically.
 
 ```
- Seller(taker)      Backend          Router              Sources
+ Taker             Backend          Router                Sources
    │ POST /swap      │                 │                     │
    ├────────────────▶│ open auction    │                     │
    │                 │ quote() ───────▶│ poll ─────────────▶ │ Settlement · DEX Agg · Facility Agg
@@ -394,7 +391,7 @@ seller signs a single router call and the router settles every leg atomically.
    │                 │                 │  skim protocol fee  │
    ▼                 ▼                 ▼                     ▼
    --------------------------------------------------------------------------
-   seller receives ≥ min_out stablecoin (route settle, or the tx reverts)
+   Taker receives ≥ min_out stablecoin (route settle, or the tx reverts)
    --------------------------------------------------------------------------
 ```
 
