@@ -6,7 +6,7 @@
 
 ### 1.1 High-Level Overview
 
-Octarine is a protocol enabling **instant liquidity for RWAs** (Real World Assets) by auctioning with institutional LPs and curated liquidity facilities.
+Octarine is a protocol enabling **instant liquidity for RWAs** (Real World Assets) by auctioning them with institutional LPs and curated liquidity facilities.
 
 **The problem**: RWAs struggle to get DEX liquidity because they're fragmented, regulated and have built-in redemption delays. These delays are not instant, which means:
 - RWAs can't be used as collateral in lending (DeFi liquidations need instant liquidity)
