@@ -27,15 +27,11 @@ How this settlement contract works is simple: a user submits a swap request, the
 
 ## 1.2 Definitions, acronyms and abbreviations
 
-- **RFQ** – Request-for-Quote: an auction sale of an asset by a maker, who creates
-  it via a signed quote (off-chain LP) or a live on-chain quote (facility / DeFi
-  source) that a taker fills on-chain.
-- **Maker** – The party providing liquidity (e.g. the LP paying stablecoin for an RWA). 
-  May be an off-chain signer or an on-chain source.
-- **Taker** – The party filling the order on-chain (gives the taker token — e.g.
-  the RWA holder seeking instant liquidity). Also called the **seller**.
-- **PMM** – Principal Market Maker: an institutional LP that bids on the RFQ with
-  its own balance sheet (e.g. GSR, Auros).
+- **RFQ** – Request-for-Quote: an auction sale of an asset where entities bid on either via a signed quote (off-chain LP) or a live on-chain quote (facility / DeFi
+  source).
+- **Maker** – The party bidding and providing liquidity (e.g. the LP paying stablecoin for an RWA). May be an off-chain signer or an on-chain source.
+- **Taker** – The party creating the auction and accepting the bid, aka filling the order on-chain. Also called the **seller**.
+- **PMM** – Private Market Maker: an institutional LP that bids off-chain on the RFQ with their own balance sheet.
 - **RFQ Router** – The on-chain contract that aggregates every bid source, picks the bid with the
   best price, and settles the winning route atomically.
 - **DEX aggregator** – The on-chain component that brings public DEX liquidity
@@ -45,18 +41,18 @@ How this settlement contract works is simple: a user submits a swap request, the
 - **Facility** – A curated, share-based vault that keeps
   depositor funds in yield strategies and bids on the RFQ with that TVL.
 - **Curator** – The party that creates and curates a facility and runs the  strategy.
-- **Venue** – An external Stellar DeFi protocol a facility deploys capital into
+- **Venue** – An external Stellar DeFi protocol that a facility deploys capital into
   (e.g. a lending market or a vaults product).
 - **Adapter** – A thin contract giving a facility a uniform interface over one
   external venue, so capital can be deployed and pulled without venue-specific code.
-- **Haircut** – The discount a bidder pays below redemption value, i.e. the spread for providing instant liquidity.
-- **NAV / share** – Net asset value of a facility and the unit of depositor
+- **Haircut** – The discount a bidder asks for to provide instant liquidity.
+- **NAV / share** – Net Asset Value of a facility and the unit of depositor
   ownership; share price = NAV / shares outstanding.
 - **Base assets** – The assets a facility deposits and pays out in
   (typically a stablecoin, e.g. USDC).
 - **Liquidation** – Forced sale of RWA collateral on a connected lending venue when
   a position becomes unhealthy; a primary source of RFQ flow.
-- **Soroban** – Stellar's smart-contract platform.
+- **Soroban** – Stellar's smart contract platform.
 - **SEP-41** – Stellar's standard token interface (`approve`, `transfer_from`,
   `balance`).
 - **SEP-53** – Stellar's message-signing standard; the analogue of EVM's EIP-712.
