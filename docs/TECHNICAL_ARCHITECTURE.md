@@ -325,90 +325,127 @@ touching the facility, aggregator, or router code.
 
 # 4. Protocol Flows
 
-## 4.1 Off-chain LP wins a swap (direct settlement)
+The flows below walk through the protocol end to end. Throughout, the **taker** is
+the party holding an RWA who wants instant liquidity (the seller), and a **bid** is
+an offer to buy that RWA for stablecoin. The backend runs every auction off-chain
+but never holds keys or funds — it only hands the taker a transaction to sign, and
+the RFQ router settles it on-chain.
 
-When a single off-chain maker wins, the taker fills the settlement contract
-directly through the rfq router.
+## 4.1 An off-chain LP wins a swap
 
-```
- Taker              Backend            LP(maker)          Router + Settlement
-   │ POST /swap        │                   │                    │
-   ├──────────────────▶│ create request    │                    │
-   │                   │   POST /bid  ◀─────┤ build + sign order│
-   │                   │  verify SEP-53     │ approve(stable)   │ approve()
-   │ best bid + ops ◀──┤  assemble ops      │                   │
-   │ sign + submit ────┼───────────────────────────────────────▶ fill_rfq_order
-   │  (wallet)         │                    │                   │  verify · swap · fee
-   ▼                   ▼                    ▼                   ▼
-        RWA: seller→LP                       stable: LP→seller (− fee)
-```
-
-## 4.2 On-chain win via the router (Curated facilities)
-
-When a facility liquidity wins, or when the best execution is a blend, the
-taker signs a single router call and the router settles every leg atomically.
+This is the simplest case: an institutional LP gives the best bid.
 
 ```
- Taker             Backend          Router                Sources
-   │ POST /swap      │                 │                     │
-   ├────────────────▶│ open auction    │                     │
-   │                 │ quote() ───────▶│ poll ─────────────▶ │ Settlement · Facility Agg
-   │                 │ + POST /bid (LP)│                     │
-   │ route + ops ◀───┤ rank → best/blend                     │
-   │ approve(RWA)    │                 │                     │
-   │ sign router.fill┼────────────────▶│ fill(route,min_out) │
-   │                 │                 │  ├─ signed leg ────▶│ Settlement.fill_*
-   │                 │                 │  └─ facility leg ──▶│ Facility Agg → facility:
-   │                 │                 │                     │ pull venue → pay → take RWA
-   │                 │                 │  assert out ≥ min_out
-   │                 │                 │  skim protocol fee  │
-   ▼                 ▼                 ▼                     ▼
-   --------------------------------------------------------------------------
-   Taker receives ≥ min_out stablecoin (route settle, or the tx reverts)
-   --------------------------------------------------------------------------
+┌───────────────────────────────────┐
+│ Taker  (holds RWA, wants stable)  │
+└─────────────────┬─────────────────┘
+                  │ submit swap request
+                  ▼
+┌───────────────────────────────────┐
+│ Backend — runs the short auction   │ ◀──── LPs sign & post their bids
+└─────────────────┬─────────────────┘
+                  │ returns the best bid as an unsigned transaction
+                  ▼
+┌───────────────────────────────────┐
+│ Taker — signs in wallet & submits  │
+└─────────────────┬─────────────────┘
+                  │ one atomic transaction
+                  ▼
+┌───────────────────────────────────┐
+│ RFQ Router  →  Settlement Contract │
+│   RWA        :  taker → LP         │
+│   stablecoin :  LP → taker (− fee) │
+└───────────────────────────────────┘
 ```
 
-## 4.3 Facility deposit / withdraw
+## 4.2 A curated facility wins (or a blended route)
+
+Facilities bid on-chain, so the backend reads their prices through the router and
+ranks them against the off-chain LP bids in the same auction.
 
 ```
- Depositor        Backend          Facility            Adapter
-   │ deposit        │                 │                     │
-   │ approve(base)  │ assemble op     │                     │
-   │ sign deposit ──┼────────────────▶│ mint shares @ NAV   │
-   │                │  (curator)─────▶│ allocate idle ────▶ │ deposit()
-   │ sign withdraw ─┼────────────────▶│ burn shares;        │
-   │                │                 │ deallocate if ────▶ │ withdraw()
-   │                │                 │ needed; pay base    │
-   ▼                ▼                 ▼                    ▼
-   
-   (if free liquidity is insufficient → withdrawal queued, served on redemption)
+┌───────────────────────────────────┐
+│ Taker                             │
+└─────────────────┬─────────────────┘
+                  │ submit swap request
+                  ▼
+┌───────────────────────────────────┐  poll on-chain bids
+│ Backend — runs the auction        │ ──────────────────▶ RFQ Router → Aggregator → facilities
+│                                   │                     
+│                                   │ ◀──── LPs post offchain bids
+└─────────────────┬─────────────────┘
+                  │ ranks every bid → best single source or a blend,
+                  │ returned as one unsigned router transaction
+                  ▼
+┌───────────────────────────────────┐
+│ Taker — signs in wallet & submits │
+└─────────────────┬─────────────────┘
+                  │ router settles every leg in one atomic tx
+                  ▼
+┌───────────────────────────────────┐
+│ RFQ Router                        │
+│   facility leg → Facility Agg     │  pull venue liquidity from facility → pay taker → give RWA to facility
+│                  → Facility       │
+└─────────────────┬─────────────────┘
+                  │ total ≥ taker minimum?  take fee  :  REVERT
+                  ▼
+┌───────────────────────────────────┐
+│ Taker gets stablecoin;            │
+│ facility keeps the RWA to redeem  │ 
+└───────────────────────────────────┘
 ```
 
-## 4.4 Redemption lifecycle
+## 4.3 Depositing into and withdrawing from a facility
+
+**Depositing:**
 
 ```
- win bid ─▶ hold RWA  ───────────▶ manager redeems with issuer (T+N)
-                                              │
-                                  issuer settles in stablecoins
-                                              │
-                                              ▼
-                       stablecoins returned to facility → NAV increases → release queued withdrawals (if any)
+┌───────────┐  approve + sign deposit  ┌──────────────────────────┐  deploy idle stable  ┌────────────────────┐
+│ Depositor │ ───────────────────────▶ │ Facility — mints shares  │ ───────────────────▶ │ Adapters → venues  │
+└───────────┘                          │ at the current NAV/share │                      │ (earn yield)       │
+                                       └──────────────────────────┘                      └────────────────────┘
 ```
 
-Between winning and settlement the facility carries the RWA at cost and its capital
-is temporarily tied up; the yield compensates depositors for that duration and
-the redemption-time risk.
 
-## 4.5 Lending-venue liquidation trigger
-
-The core utility unlock: a lending market can accept RWA collateral because
-Octarine guarantees an instant buyer at liquidation time.
+**Withdrawing:**
 
 ```
- connected lending venue ──position unhealthy──▶ bots detect ──▶ backend opens auction (LPs · facilities)
-        │                                                                  │
-        ▼                                                                  ▼
- collateral RWA seized ──────────────────▶ sold via the RFQ router────▶ stablecoin to repays the loan
+┌───────────┐  sign withdrawal   ┌──────────────────────────┐  pull liquidity if needed  ┌────────────────────┐
+│ Depositor │ ─────────────────▶ │ Facility — burns shares, │ ─────────────────────────▶ │ Adapters → venues  │
+│           │ ◀───────────────── │ pays stablecoin at NAV   │ ◀───────────────────────── │                    │
+└───────────┘   stablecoin out   └──────────────────────────┘                            └────────────────────┘
+        
+```
+
+
+## 4.4 The redemption lifecycle
+
+This is how a facility turns a won RWA back into stablecoin and profit.
+
+```
+┌──────────────────┐  send RWA        ┌────────────────────────┐  redeem with issuer (T+N)  ┌──────────┐
+│ RFQ Router.      │ ───────────────▶ │ Facility               │ ─────────────────────────▶ │ Issuer   │
+└──────────────────┘                  └───────────┬────────────┘                            └────┬─────┘
+                                                  ▲                                              │
+                                                  │                                              │
+                                                  └────────────settles stablecoin────────────────┘
+```
+
+## 4.5 A lending-market liquidation
+
+This is the core utility unlock: a lending market can safely accept RWA collateral
+because Octarine guarantees an instant buyer the moment a position is liquidated.
+
+```
+┌─────────────────┐  position unhealthy  ┌──────────────────────────┐                    ┌───────────────────────────── ───┐
+│ Lending market  │ ───────────────────▶ │ Octarine bots detects it │ ─────────────────▶ │ Backend : starts an RFQ auction │
+└─────────────────┘                      └──────────────────────────┘                    └─────────┬─────────────────── ───┘
+                                                                                                   │ best bid wins
+                                                                                                   ▼
+                                   ┌─────────────────┐  stablecoins sent to lending market  ┌───────────────────┐  
+                                   │ Loan repaid     │ ◀─────────────────────────────────── │ RFQ Router        │ 
+                                   │ to the market   │ ───────────────────────────────────▶ │ settles the trade │         
+                                   └─────────────────┘  Collateral sent to RFQ router       └───────────────────┘  
 ```
 
 ---
