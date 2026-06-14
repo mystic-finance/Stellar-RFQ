@@ -214,8 +214,7 @@ aggregators, facilities and adapters) plus the SEP-41/SAC tokens they move.
 
 # 3. Contract Overview
 
-The protocol's on-chain logic is split across the Soroban contracts below, each
-given with its key functions.
+The protocol's on-chain logic is split across the Soroban contracts below.
 
 ## 3.1 Settlement Contract
 
@@ -251,13 +250,12 @@ signed-bids leg beneath the router.
 ## 3.2 RFQ Router
 
 A Soroban contract that aggregates every bid source for a request, selects the best
-execution, and settles the winning route atomically against a taker minimum output. It composes of the settlement contract for signed bids and the DEX and facility
-aggregators for on-chain liquidity, so one trade can settle against a
-single source or a blend of several.
+execution, and settles the winning route atomically against a taker minimum output. It routes through the settlement contract for off-chaind bids and the DEX and facility
+aggregators for on-chain routes. In addition, a trade can settle against a single source or a blend of multiple.
 
 **Key Functions:**
 
-- **Quote aggregation (`quote`)** → polls each aggregator for a price (onchain bid)
+- **Quote aggregation (`quote`)** → polls each aggregator for a price (on-chain bid)
   at the trade size and returns the list; read-only, used by the backend
   to get on-chain bids for the auction.
 - **Route & fill (`fill`)** → the taker submits the chosen route;
@@ -303,7 +301,7 @@ point the router sees for the whole facility ecosystem.
 ## 3.5 Liquidity Facility
 
 A Soroban contract implementing a curated, share-based vault that keeps depositor
-funds in yield venues and bids on the RFQ with that TVL. On winning it pulls
+funds in yield venues and bids on the RFQ with that TVL. On winning, it pulls
 liquidity from its venues, pays the taker, takes the RWA, and later redeems it for
 a haircut that accrues to share value net of a curator fee.
 
@@ -318,17 +316,17 @@ a haircut that accrues to share value net of a curator fee.
   its curator-set caps.
 - **Redeem assets for stablecoins (`redeem_for_assets`)** → called by the aggregator on a win:
   validates price and caps, pulls just enough stablecoins from venues via adapters, pays
-  the seltakerler, takes the RWA, and books it for redemption, inside the
+  the seller, takes the RWA, and books it for redemption, inside the
   router's atomic fill.
 - **Venue allocation (`allocate` / `deallocate`)** → idle stablecoins are deployed to
-  whitelisted venues and pulled back on demand, bounded by each adapter's
+  whitelisted venues and pulled on demand, bounded by each adapter's
   withdrawable balance.
 - **Redemption (`book_redemption` / `settle_redemption`)** → acquired RWA is redeemed
-  with the issuer (T+N) by the facility manager;.
+  with the issuer (T+N).
 
 ## 3.6 Adapters
 
-Thin Soroban contracts that give a facility a uniform interface over one external
+Thin Soroban contracts that give each facility a uniform interface over one external
 venue, so assets can be deployed and pulled. Adding a
 protocol to the ecosystem means writing and whitelisting one adapter, never
 touching the facility, aggregator, or router code.
