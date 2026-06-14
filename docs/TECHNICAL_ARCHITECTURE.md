@@ -7,18 +7,19 @@
 
 ## 1.1 High-Level Overview
 
-Octarine is a protocol enabling instant liquidity for RWAs, by auctioning liquidations with institutional LPs, third-party protocols and curated liquidity facilities.
+Octarine is a protocol enabling instant liquidity for RWAs, by auctioning liquidations with institutional LPs and curated liquidity facilities.
 
 RWAs struggle to get DEX liquidity because they're fragmented, regulated and tend to have built-in redemption times. These are not instant, however, which means that RWAs can't be onboarded in lending, as DeFi liquidations need instant liquidity. It also doesn't allow for managing leveraged loops, as users can't instantly unwind their positions. To top it all off, the absence of instant liquidity makes RWAs less attractive for prospective LPs, who can't afford to have their capital locked up unwillingly. This ultimately means that RWAs can have no utility in DeFi nor any functional secondary markets until instant liquidity is solved, as they can't be traded or otherwise onboarded as collateral.
 
-Octarine changes that, by giving liquidity to RWAs via auctions with LPs, third-party protocols and curated liquidity facilities. When there is a liquidation, either on Octarine or on a connected venue, Octarine detects it and auctions it with connected bidders. We then award the trade to the best bid available. Bids can come from either LPs bidding on the API or from third-party DeFi protocols, thus ensuring the RFQ always has the best price in the market. Bidders on Octarine can at any time create and curate vaults with their bidding strategy, thus making the trade accessible to a broader audience. These vaults keep user deposits in lending strategies and call them when they win a liquidation to send to the user. In return, they then receive and redeem the RWA whilst earning a haircut in the process.
+Octarine changes that, by giving liquidity to RWAs via auctions with LPs and curated liquidity facilities. When there is a liquidation, either on Octarine or on a connected venue, Octarine detects it and auctions it with connected bidders. We then award the trade to the best bid available. Bidders on Octarine can at any time create and curate vaults with their bidding strategy, thus making the trade accessible to a broader audience. These vaults keep user deposits in lending strategies and call them when they win a liquidation to send to the user. In return, they then receive and redeem the RWA whilst earning a haircut in the process.
 
 The protocol is thus comprised of several elements, namely:
 - A settlement contract, which settles transactions between the auction winner and the user. Supports both swaps and lending market liquidations.
 - A backend, which handles and coordinates the auction logic and aggregates bids from both off-chain and on-chain sources and chooses the best price. The backend is connected to an API/SDK, such that third-parties can easily bid on the RFQ and integrate with us to enable instant liquidity on their assets.
 - A liquidity facility contract, which enables bidders to curate vaults that keep user deposits in lending markets and bid on liquidations with lending TVL;
 - Adapter contracts for each protocol that we integrate with. For example, each lending market connected to a facility will need its own adapter contract.
-- An RFQ router contract, which routes to the winning bid and settles with that bidder.
+- An RFQ router contract, which considers both off-chain bids and on-chain pricing sources to ascertain the best bid and settle the trade with it.
+- A facility aggregator contract, which aggregates pricing from all liquidity facilities.
 
 Serves this document to outline the architecture that Octarine is implementing to have this protocol on Stellar. In addition to the architecture design for the whole build, this repo has the codebase of a bare-bones settlement contract on Stellar that our team has already made, the first and most crucial piece of the above 5 that make up the full planned build of Octarine on Stellar.
 
@@ -193,7 +194,7 @@ aggregators, facilities and adapters) plus the SEP-41/SAC tokens they move.
   facility bids are ranked together; all settle through the same atomic transaction.
 - **Signatures produced by wallets** — maker orders must be signable
   by both browser wallets (xBull/Freighter) and bot wallets using the same scheme
-  (SEP-53). Contract sources (DEXes, facilities) bid via on-chain quotes, not
+  (SEP-53). Contract sources (facilities) bid via on-chain quotes, not
   signatures.
 - **Replay safety** — signatures are bound to a specific deployment (domain
   separation) and network (SEP-53 passphrase).
