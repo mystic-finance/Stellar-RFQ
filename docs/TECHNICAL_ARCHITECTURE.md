@@ -15,7 +15,7 @@ Octarine changes that, by giving liquidity to RWAs via auctions with LPs, third-
 
 The protocol is thus comprised of several elements, namely:
 - A settlement contract, which settles transactions between the auction winner and the user. Supports both swaps and lending market liquidations.
-- A backend, which handles and coordinates the auction logic and aggregates bids from both off-chain and on-chain sources. The backend is connected to an API/SDK, such that third-parties can easily bid on the RFQ and integrate with us to enable instant liquidity on their assets.
+- A backend, which handles and coordinates the auction logic and aggregates bids from both off-chain and on-chain sources and chooses the best price. The backend is connected to an API/SDK, such that third-parties can easily bid on the RFQ and integrate with us to enable instant liquidity on their assets.
 - A liquidity facility contract, which enables bidders to curate vaults that keep user deposits in lending markets and bid on liquidations with lending TVL;
 - Adapter contracts for each protocol that we integrate with. For example, each lending market connected to a facility will need its own adapter contract.
 - An RFQ router contract, which routes to the winning bid and settles with that bidder.
