@@ -34,8 +34,6 @@ How this settlement contract works is simple: a user submits a swap request, the
 - **PMM** – Private Market Maker: an institutional LP that bids off-chain on the RFQ with their own balance sheet.
 - **RFQ Router** – The on-chain contract that aggregates every bid source, picks the bid with the
   best price, and settles the winning route atomically.
-- **DEX aggregator** – The on-chain component that brings public DEX liquidity
-  into the RFQ as a bid source, quoting and routing across integrated DEXes.
 - **Facility aggregator** – The on-chain component that collects and ranks bids
   across all curated liquidity facilities and routes the winning facility's fill.
 - **Facility** – A curated, share-based vault that keeps
@@ -82,7 +80,6 @@ Three sources of liquidity compete on every trade:
 |---|---|---|
 | **Off-chain LP** | `POST /bid` with a SEP-53-signed maker order | Settlement contract `fill_*` (signed maker leg) |
 | **Curated facility** | On-chain `quote` from facility aggregator | Router swaps using facility liquidity |
-| **Third-party DEXes** | On-chain `quote` from DEX aggregator | Router swaps using DEX liquidity |
 
 The backend fetches and ranks all three, the bid with the **best price** wins, and the **RFQ router**
 settles the winning route in one atomic transaction.
@@ -91,7 +88,7 @@ settles the winning route in one atomic transaction.
 
 ```
         Taker                                           Maker
-   holds an RWA,                               (off-chain LP, facility, DEX)
+   holds an RWA,                               (off-chain LP, facility)
 wants instant liquidity                 quotes a price for providing instant liquidity
             │                                               │  
             │  submits request                              |  submits bid
@@ -111,8 +108,8 @@ wants instant liquidity                 quotes a price for providing instant liq
       │ deposit into    | get onchain                                    
       | venues          | bids
       ▼                 ▼                          
-  Venue Adapter      Facility & DEX                                      
-   Contracts        Aggregator Contracts
+  Venue Adapter      Facility                                      
+   Contracts          Contracts
 ```
 
 ## 2.3 Zoom into the Octarine System (Component diagram)
@@ -120,8 +117,7 @@ wants instant liquidity                 quotes a price for providing instant liq
 The off-chain backend runs the auction and hands the taker wallet-signable
 operations; the on-chain contracts settle the winning route. On-chain, the **RFQ
 Router** is the single front door: it draws bids from three sources — the
-**Settlement contract** (off-chain LP signed orders), the **DEX Aggregator**
-(DEX liquidity) and the **Facility Aggregator** (curated vault bids),
+**Settlement contract** (off-chain LP signed orders), and the **Facility Aggregator** (curated vault bids),
 picks the bid with the best price, and settles atomically. Facilities deposit into venues for yield
 through **Adapters**.
 
@@ -152,19 +148,19 @@ through **Adapters**.
   ║                    │  aggregate bids · best price · │                     ║
   ║                    │  atomic fill · protocol fee    │                     ║
   ║                    └──┬───────────────┬──────────┬──┘                     ║
-  ║        signed bids    │               │          │   on-chain bids        ║
-  ║      ┌────────────────┘       ┌───────┘          └────────┐               ║
-  ║      ▼                        ▼                           ▼               ║
-  ║ ┌──────────────┐    ┌───────────────────┐    ┌────────────────────────┐   ║
-  ║ │ Settlement   │    │ DEX Aggregator    │    │ Facility Aggregator    │   ║
-  ║ │ Contract     │    │ best DEX path     │    │ best facility bid      │   ║
-  ║ │ (LP signed   │    └─────────┬─────────┘    └───────────┬────────────┘   ║
-  ║ │  orders)     │              │                          │                ║
-  ║ └──────┬───────┘              ▼                          ▼                ║
-  ║        │            ┌───────────────────┐    ┌────────────────────────┐   ║
-  ║        │            │ DEXes             │    │ Liquidity Facilities   │   ║
-  ║        │            │ Soroswap·Aquarius │    │ (curated vaults)       │   ║
-  ║        │            └───────────────────┘    └───────────┬────────────┘   ║
+  ║        signed bids    │                          │   on-chain bids        ║
+  ║      ┌────────────────┘                          └────────┐               ║
+  ║      ▼                                                    ▼               ║
+  ║ ┌──────────────┐                             ┌────────────────────────┐   ║
+  ║ │ Settlement   │                             │ Facility Aggregator    │   ║
+  ║ │ Contract     │                             │ best facility bid      │   ║
+  ║ │ (LP signed   │                             └───────────┬────────────┘   ║
+  ║ │  orders)     │                                         │                ║
+  ║ └──────┬───────┘                                         ▼                ║
+  ║        │                                     ┌────────────────────────┐   ║
+  ║        │                                     │ Liquidity Facilities   │   ║
+  ║        │                                     │ (curated vaults)       │   ║
+  ║        │                                     └───────────┬────────────┘   ║
   ║        │                                                 │                ║
   ║        │                                                 ▼                ║
   ║        │                                     ┌────────────────────────┐   ║
@@ -193,7 +189,7 @@ aggregators, facilities and adapters) plus the SEP-41/SAC tokens they move.
 - **Best-price execution** — the router selects the best bid (or blend
   of bids) and enforces a taker-specified minimum output; the fill reverts if the
   taker were to receive less than quoted.
-- **Many bid channels, one auction** — off-chain signed orders, DEX liquidity and
+- **Many bid channels, one auction** — off-chain signed orders, and
   facility bids are ranked together; all settle through the same atomic transaction.
 - **Signatures produced by wallets** — maker orders must be signable
   by both browser wallets (xBull/Freighter) and bot wallets using the same scheme
@@ -250,7 +246,7 @@ signed-bids leg beneath the router.
 ## 3.2 RFQ Router
 
 A Soroban contract that aggregates every bid source for a request, selects the best
-execution, and settles the winning route atomically against a taker minimum output. It routes through the settlement contract for off-chaind bids and the DEX and facility
+execution, and settles the winning route atomically against a taker minimum output. It routes through the settlement contract for off-chain bids and the facilities.
 aggregators for on-chain routes. In addition, a trade can settle against a single source or a blend of multiple.
 
 **Key Functions:**
@@ -262,27 +258,14 @@ aggregators for on-chain routes. In addition, a trade can settle against a singl
   the router executes each leg, sums the taker's realised output, and asserts it
   meets `min_out`, reverting the whole transaction otherwise.
 - **Source registry (`register_source`)** → governance whitelists the settlement
-  contract, DEX aggregator and facility aggregator as routable sources.
+  contract, and facility aggregator as routable sources.
 - **Atomicity & fees** → every leg settles in one transaction; signed legs inherit
   the settlement contract's submission gating with the router as the authorised
   origin, and a protocol fee is skimmed from the settled output.
 - **Admin** → `initialize(admin, fee_recipient, fee)` and native `upgrade(wasm_hash)`.
 
-## 3.3 DEX Aggregator
 
-A Soroban contract that brings Stellar's on-chain liquidity from DEXes as a liquidity source. It quotes the best path across
-integrated DEXes for a given size and executes that swap on the router's behalf.
-
-**Key Functions:**
-
-- **Quote (`quote`)** → returns the best obtainable output across integrated DEXes
-  for `(token_in, token_out, amount)`; read-only.
-- **Swap (`swap`)** → executes the quoted path under the router's call, reverting
-  if the path can't deliver.
-- **DEX registry** → admin registers the DEXes the aggregator routes through (e.g.
-  Soroswap, Aquarius, Phoenix).
-
-## 3.4 Facility Aggregator
+## 3.3 Facility Aggregator
 
 A Soroban contract that collects and ranks quotes across all curated facilities for a
 requested RWA and settles the winning facility's fill. It is the single integration
@@ -298,7 +281,7 @@ point the router sees for the whole facility ecosystem.
   router's call.
 
 
-## 3.5 Liquidity Facility
+## 3.4 Liquidity Facility
 
 A Soroban contract implementing a curated, share-based vault that keeps depositor
 funds in yield venues and bids on the RFQ with that TVL. On winning, it pulls
@@ -324,7 +307,7 @@ a haircut that accrues to share value net of a curator fee.
 - **Redemption (`book_redemption` / `settle_redemption`)** → acquired RWA is redeemed
   with the issuer (T+N).
 
-## 3.6 Adapters
+## 3.5 Adapters
 
 Thin Soroban contracts that give each facility a uniform interface over one external
 venue, so assets can be deployed and pulled. Adding a
@@ -338,8 +321,7 @@ touching the facility, aggregator, or router code.
 - **Balances (`total_assets` / `max_withdraw`)** → report the facility's current
   redeemable balance (including accrued yield) and how much can be withdrawn
   instantly; the latter bounds how much a facility can safely bid.
-- **Scope** → two adapters ship first: a lending market and a vaults product; DEX
-  liquidity is integrated under the DEX Aggregator.
+- **Scope** → two adapters ship first: a lending market and a vaults product;
 
 ---
 
@@ -363,22 +345,21 @@ directly through the rfq router.
         RWA: seller→LP                       stable: LP→seller (− fee)
 ```
 
-## 4.2 On-chain win via the router (DEX / facility)
+## 4.2 On-chain win via the router (Curated facilities)
 
-When DEX or facility liquidity wins, or when the best execution is a blend, the
+When a facility liquidity wins, or when the best execution is a blend, the
 taker signs a single router call and the router settles every leg atomically.
 
 ```
  Taker             Backend          Router                Sources
    │ POST /swap      │                 │                     │
    ├────────────────▶│ open auction    │                     │
-   │                 │ quote() ───────▶│ poll ─────────────▶ │ Settlement · DEX Agg · Facility Agg
+   │                 │ quote() ───────▶│ poll ─────────────▶ │ Settlement · Facility Agg
    │                 │ + POST /bid (LP)│                     │
    │ route + ops ◀───┤ rank → best/blend                     │
    │ approve(RWA)    │                 │                     │
    │ sign router.fill┼────────────────▶│ fill(route,min_out) │
    │                 │                 │  ├─ signed leg ────▶│ Settlement.fill_*
-   │                 │                 │  ├─ DEX leg ───────▶│ DEX Agg → DEXes (swap)
    │                 │                 │  └─ facility leg ──▶│ Facility Agg → facility:
    │                 │                 │                     │ pull venue → pay → take RWA
    │                 │                 │  assert out ≥ min_out
@@ -426,7 +407,7 @@ The core utility unlock: a lending market can accept RWA collateral because
 Octarine guarantees an instant buyer at liquidation time.
 
 ```
- connected lending venue ──position unhealthy──▶ bots detect ──▶ backend opens auction (LPs · DEX · facilities)
+ connected lending venue ──position unhealthy──▶ bots detect ──▶ backend opens auction (LPs · facilities)
         │                                                                  │
         ▼                                                                  ▼
  collateral RWA seized ──────────────────▶ sold via the RFQ router────▶ stablecoin to repays the loan
@@ -441,9 +422,8 @@ Octarine guarantees an instant buyer at liquidation time.
 - **Settlement contract** — RFQ + limit order settlement;
   SEP-53 signatures, SEP-41 settlement.
 - **RFQ router** — atomic multi-source settlement + fee.
-- **DEX aggregator** — quoting and routing across public Stellar DEXes.
 - **Facility aggregator** — quoting and routing across curated facilities.
-- **Facility** — share-based vault, redemption accounting.
+- **Liquidity Facility** — share-based vault, redemption accounting.
 
 ## 5.2 Backend
 
@@ -483,7 +463,6 @@ Octarine guarantees an instant buyer at liquidation time.
 - **Stellar Wallets Kit** — wallet connection + tx/message signing.
 - **Soroban RPC / Horizon** — simulation, submission, balance/ledger queries.
 - **SEP-41 / SAC token contracts** — the RWA and stable assets the protocol settles.
-- **DEXes** — public liquidity for the DEX aggregator.
 - **Lending markets & vault products** — yield venues behind facility adapters.
 - **KYC / compliance provider** — identity checks and regulated-asset gating.
 
