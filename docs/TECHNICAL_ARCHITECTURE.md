@@ -75,14 +75,14 @@ Octarine conducts **off-chain auctions with on-chain settlement**. The
 backend never holds keys or funds, rather it coordinates the auction and gives the
 trade to the winning bidder for on-chain settlement.
 
-Three sources of liquidity compete on every trade:
+Two sources of liquidity compete on every trade:
 
 | Liquidity source | How it bids | How it settles |
 |---|---|---|
 | **Off-chain LP** | `POST /bid` with a SEP-53-signed maker order | Settlement contract `fill_*` (signed maker leg) |
 | **Curated facility** | On-chain `quote` from facility aggregator | Router swaps using facility liquidity |
 
-The backend fetches and ranks all three, the bid with the **best price** wins, and the **RFQ router**
+The backend fetches and ranks prices from both, the bid with the **best price** wins, and the **RFQ router**
 settles the winning route in one atomic transaction.
 
 ## 2.2 High-Level Architecture
@@ -101,26 +101,24 @@ wants instant liquidity                 quotes a price for providing instant liq
    ╚══╤═════════════════╤═════════════════╤═════════════════╤══════════════════╝
       │                 │                 │                 │
       │ curation of     │ aggregation     │ settlement      │ routing
-      │ facilities      │                 |                 │ 
+      │ facilities      │ of on-chain bids|                 │ 
       ▼                 ▼                 ▼                 ▼
-     Vault         Aggregator           Settlement        Router
+   Facility         Aggregator           Settlement        Router
    Contracts        Contracts           Contracts       Countracts   
-      │                 │
-      │ deposit into    | get onchain                                    
-      | venues          | bids
-      ▼                 ▼                          
-  Venue Adapter      Facility                                      
-   Contracts          Contracts
+      │                 
+      │ deposit into                                        
+      | venues          
+      ▼                                           
+  Venue Adapter                                            
+   Contracts         
 ```
 
 ## 2.3 Zoom into the Octarine System (Component diagram)
 
 The off-chain backend runs the auction and hands the taker wallet-signable
 operations; the on-chain contracts settle the winning route. On-chain, the **RFQ
-Router** is the single front door: it draws bids from three sources — the
-**Settlement contract** (off-chain LP signed orders), and the **Facility Aggregator** (curated vault bids),
-picks the bid with the best price, and settles atomically. Facilities deposit into venues for yield
-through **Adapters**.
+Router** is the single front door: it draws bids from the **Settlement contract** (off-chain LP signed orders), and the **Facility Aggregator** (curated vault bids),
+picks the bid with the best price, and settles atomically. Facilities deposit into venues for yield through **Adapters**.
 
 ```
    Sellers                Off-chain LPs               Depositors / Curators
@@ -177,8 +175,7 @@ through **Adapters**.
   ╚═══════════════════════════════════════════════════════════════════════════╝
 ```
 
-The on-chain components are the Soroban contracts (router, settlement, the two
-aggregators, facilities and adapters) plus the SEP-41/SAC tokens they move.
+The on-chain components are the Soroban contracts (router, settlement, aggregator, facilities and adapters) plus the SEP-41/SAC tokens they move.
 
 ## 2.4 Architecture constraints
 
@@ -247,8 +244,8 @@ signed-bids leg beneath the router.
 ## 3.2 RFQ Router
 
 A Soroban contract that aggregates every bid source for a request, selects the best
-execution, and settles the winning route atomically against a taker minimum output. It routes through the settlement contract for off-chain bids and the facilities.
-aggregators for on-chain routes. In addition, a trade can settle against a single source or a blend of multiple.
+execution, and settles the winning route atomically against a taker minimum output. It routes through the settlement contract for off-chain bids and the
+facility aggregator when facilities have the best prices. In addition, a trade can settle against a single source or a blend of multiple.
 
 **Key Functions:**
 
@@ -270,7 +267,7 @@ aggregators for on-chain routes. In addition, a trade can settle against a singl
 
 A Soroban contract that collects and ranks quotes across all curated facilities for a
 requested RWA and settles the winning facility's fill. It is the single integration
-point the router sees for the whole facility ecosystem.
+point the router sees for all facilities.
 
 **Key Functions:**
 
