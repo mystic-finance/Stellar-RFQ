@@ -117,12 +117,12 @@ wants instant liquidity                 quotes a price for providing instant liq
 
 ## 2.3 Zoom into the Octarine System (Component diagram)
 
-The off-chain platform runs the auction and hands the taker wallet-signable
+The off-chain backend runs the auction and hands the taker wallet-signable
 operations; the on-chain contracts settle the winning route. On-chain, the **RFQ
 Router** is the single front door: it draws bids from three sources — the
 **Settlement contract** (off-chain LP signed orders), the **DEX Aggregator**
-(DEX liquidity) and the **Facility Aggregator** (curated vault bids) and
-picks the bid with the best price, and settles atomically. Facilities reach their yield venues
+(DEX liquidity) and the **Facility Aggregator** (curated vault bids),
+picks the bid with the best price, and settles atomically. Facilities deposit into venues for yield
 through **Adapters**.
 
 ```
@@ -182,23 +182,21 @@ through **Adapters**.
 
 The on-chain components are the Soroban contracts (router, settlement, the two
 aggregators, facilities and adapters) plus the SEP-41/SAC tokens they move.
-Everything above the chain is off-chain.
 
 ## 2.4 Architecture constraints
 
 - **Non-custodial backend** — every value-changing action is signed by
-  a wallet (taker, LP, depositor) or authorised by a contract under its on-chain
-  policy. The backend holds no keys and no funds.
+  a wallet (taker, LP, depositor) or authorised by a contract. The backend holds no keys and no funds.
 - **Atomic settlement** — all legs of a fill (token swap, protocol fee, and any
   venue liquidity pull) move in one transaction or the whole fill reverts. No
   partial settlement state, including across blended multi-source routes.
 - **Best-price execution** — the router selects the best bid (or blend
-  of bids) and enforces a taker specified minimum output; the fill reverts if the
-  taker would receive less than quoted.
+  of bids) and enforces a taker-specified minimum output; the fill reverts if the
+  taker were to receive less than quoted.
 - **Many bid channels, one auction** — off-chain signed orders, DEX liquidity and
   facility bids are ranked together; all settle through the same atomic transaction.
 - **Signatures produced by wallets** — maker orders must be signable
-  by browser wallets (xBull/Freighter) or bots wallets, using the same scheme
+  by both browser wallets (xBull/Freighter) and bot wallets using the same scheme
   (SEP-53). Contract sources (DEXes, facilities) bid via on-chain quotes, not
   signatures.
 - **Replay safety** — signatures are bound to a specific deployment (domain
@@ -476,21 +474,18 @@ Octarine guarantees an instant buyer at liquidation time.
   hosted on Azure for low‑latency access from the API VMs.
 - **Cloudflare Pages** — Static hosting + CDN for the frontend deployment.
 - **Soroban RPC / Horizon** — simulate + submit; account/ledger data.
-- **Indexing & Monitoring** — indexing fills, facility NAV, allocations,
-  and redemptions.
-- **stellar-cli pipeline** – Deterministic build → optimize (~21 KB WASM) →
+- **Indexing & Monitoring** — indexing fills, allocations and redemptions.
+- **stellar-cli pipeline** – Deterministic build → optimize  →
   deploy → `initialize`, with addresses written to `deployments/<network>.json`.
 
 ---
 
 # 6. Integrations
 
-- **Stellar Wallets Kit** (xBull, Freighter) — wallet connection + tx/message
-  signing.
+- **Stellar Wallets Kit** — wallet connection + tx/message signing.
 - **Soroban RPC / Horizon** — simulation, submission, balance/ledger queries.
 - **SEP-41 / SAC token contracts** — the RWA and stable assets the protocol settles.
-- **DEXes** (Soroswap, Aquarius, Phoenix) — public liquidity for the
-  DEX aggregator.
+- **DEXes** — public liquidity for the DEX aggregator.
 - **Lending markets & vault products** — yield venues behind facility adapters.
 - **KYC / compliance provider** — identity checks and regulated-asset gating.
 
