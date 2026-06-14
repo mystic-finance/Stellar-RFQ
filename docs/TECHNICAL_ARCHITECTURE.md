@@ -72,11 +72,11 @@ How this settlement contract works is simple: a user submits a swap request, the
 
 ## 2.1 The protocol at a glance
 
-Octarine provides **off-chain auctions with on-chain settlement**. The
-backend never holds keys or funds; it coordinates a short auction and gives the
+Octarine conducts **off-chain auctions with on-chain settlement**. The
+backend never holds keys or funds, rather it coordinates the auction and gives the
 trade to the winning bidder for on-chain settlement.
 
-Three classes of liquidity compete on every trade:
+Three sources of liquidity compete on every trade:
 
 | Liquidity source | How it bids | How it settles |
 |---|---|---|
@@ -85,32 +85,34 @@ Three classes of liquidity compete on every trade:
 | **Third-party DEXes** | On-chain `quote` from DEX aggregator | Router swaps using DEX liquidity |
 
 The backend fetches and ranks all three, the bid with the **best price** wins, and the **RFQ router**
-settles the winning route, in one atomic transaction.
+settles the winning route in one atomic transaction.
 
 ## 2.2 High-Level Architecture
 
 ```
-        Taker                                           Off-chain LP
-   holds an RWA, wants instant                   quotes & SEP-53-signs maker
-   liquidity                                      orders (either through a bot or through the UI)
-            │  submits request                              │  POST /bid (signed)
-            │                                               │
+        Taker                                           Maker
+   holds an RWA,                               (off-chain LP, facility, DEX)
+wants instant liquidity                 quotes a price for providing instant liquidity
+            │                                               │  
+            │  submits request                              |  submits bid
+            |                                               │
             ▼                                               ▼
    ╔═══════════════════════════════════════════════════════════════════════════╗
    ║                          OCTARINE  PROTOCOL                               ║
-   ║   Off-chain auction over on-chain atomic settlement for RWA liquidity.    ║
+   ║   Off-chain auction with on-chain atomic settlement for RWA liquidity.    ║
    ╚══╤═════════════════╤═════════════════╤═════════════════╤══════════════════╝
       │                 │                 │                 │
-      │ deposit /       │ curate /        │ token           │ compliance
-      │ withdraw        │ set strategy    │ transfers       │ 
+      │ curation of     │ aggregation     │ settlement      │ routing
+      │ facilities      │                 |                 │ 
       ▼                 ▼                 ▼                 ▼
-  Facility          Curator           SEP-41 / SAC      KYC + regulated-asset permissioning
-  depositors                         token contracts   
-  (liquidity providers)              (RWA / stable)    
-            │                                   ▲
-            │                                   │  call venue liquidity for redemptions & liquidations
-            ▼                                   │
-  Venues (lending markets, vaults) ─────────────┘
+     Vault         Aggregator           Settlement        Router
+   Contracts        Contracts           Contracts       Countracts   
+      │                 │
+      │ deposit into    | get onchain                                    
+      | venues          | bids
+      ▼                 ▼                          
+  Venue Adapter      Facility & DEX                                      
+   Contracts        Aggregator Contracts
 ```
 
 ## 2.3 Zoom into the Octarine System (Component diagram)
