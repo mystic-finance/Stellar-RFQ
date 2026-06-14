@@ -337,12 +337,12 @@ This is the simplest case: an institutional LP gives the best bid.
 
 ```
 ┌───────────────────────────────────┐
-│ Taker  (holds RWA, wants stable)  │
+│ Taker  (holds RWA, wants stables)  │
 └─────────────────┬─────────────────┘
                   │ submit swap request
                   ▼
 ┌───────────────────────────────────┐
-│ Backend — runs the short auction   │ ◀──── LPs sign & post their bids
+│ Backend — runs the auction        │ ◀──── LPs sign & post their bids
 └─────────────────┬─────────────────┘
                   │ returns the best bid as an unsigned transaction
                   ▼
@@ -400,20 +400,20 @@ ranks them against the off-chain LP bids in the same auction.
 **Depositing:**
 
 ```
-┌───────────┐  approve + sign deposit  ┌──────────────────────────┐  deploy idle stable  ┌────────────────────┐
-│ Depositor │ ───────────────────────▶ │ Facility — mints shares  │ ───────────────────▶ │ Adapters → venues  │
+┌───────────┐  approve + sign deposit  ┌──────────────────────────┐  deploy stables      ┌────────────────────┐
+│ Depositor │ ───────────────────────▶ │ Facility — mints shares  │ ──────────────────▶ │ Adapters → venues  │
 └───────────┘                          │ at the current NAV/share │                      │ (earn yield)       │
-                                       └──────────────────────────┘                      └────────────────────┘
+                                       └──────────────────────────┘                      └───────────────_────┘
 ```
 
 
 **Withdrawing:**
 
 ```
-┌───────────┐  sign withdrawal   ┌──────────────────────────┐  pull liquidity if needed  ┌────────────────────┐
-│ Depositor │ ─────────────────▶ │ Facility — burns shares, │ ─────────────────────────▶ │ Adapters → venues  │
-│           │ ◀───────────────── │ pays stablecoin at NAV   │ ◀───────────────────────── │                    │
-└───────────┘   stablecoin out   └──────────────────────────┘                            └────────────────────┘
+┌───────────┐  sign withdrawal    ┌──────────────────────────┐  pull liquidity if needed  ┌────────────────────┐
+│ Depositor │ ─────────────────▶ │ Facility — burns shares,  │ ─────────────────────────▶ │ Adapters → venues  │
+│           │ ◀───────────── ─── │ pays stablecoins at NAV   │ ◀───────────────────────── │                    │
+└───────────┘   stablecoins out   └──────────────────────────┘                            └────────────────────┘
         
 ```
 
@@ -423,22 +423,22 @@ ranks them against the off-chain LP bids in the same auction.
 This is how a facility turns a won RWA back into stablecoin and profit.
 
 ```
-┌──────────────────┐  send RWA        ┌────────────────────────┐  redeem with issuer (T+N)  ┌──────────┐
-│ RFQ Router.      │ ───────────────▶ │ Facility               │ ─────────────────────────▶ │ Issuer   │
+┌──────────────────┐  sends RWA       ┌────────────────────────┐  redeem with issuer (T+N)  ┌──────────┐
+│ RFQ Router       │ ───────────────▶ │ Facility               │ ─────────────────────────▶│ Issuer   │
 └──────────────────┘                  └───────────┬────────────┘                            └────┬─────┘
                                                   ▲                                              │
                                                   │                                              │
-                                                  └────────────settles stablecoin────────────────┘
+                                                  └────────────settles stablecoins───────────────┘
 ```
 
-## 4.5 A lending-market liquidation
+## 4.5 A lending market liquidation
 
 This is the core utility unlock: a lending market can safely accept RWA collateral
 because Octarine guarantees an instant buyer the moment a position is liquidated.
 
 ```
 ┌─────────────────┐  position unhealthy  ┌──────────────────────────┐                    ┌───────────────────────────── ───┐
-│ Lending market  │ ───────────────────▶ │ Octarine bots detects it │ ─────────────────▶ │ Backend : starts an RFQ auction │
+│ Lending market  │ ───────────────────▶ │ Octarine bots detects it │ ────────────────▶ │ Backend : starts an RFQ auction │
 └─────────────────┘                      └──────────────────────────┘                    └─────────┬─────────────────── ───┘
                                                                                                    │ best bid wins
                                                                                                    ▼
