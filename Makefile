@@ -11,7 +11,7 @@ build:
 
 ## Run the contract unit-test suite.
 test:
-	cargo test -p rfq
+	cargo test --workspace
 
 ## Build the on-chain WASM and optimise it.
 wasm:
@@ -39,17 +39,17 @@ seed-demo:
 e2e:
 	./scripts/e2e.sh
 
-## Mint test tokens (RFQA + RFQB) to an address (admin-gated).
+## Mint test tokens (ORWA + OUSD) to an address (admin-gated).
 ##   make mint TO=G...address [AMOUNT=10000000000]   # amount in raw units, 7 decimals
 mint:
 	@test -n "$(TO)" || { echo "Usage: make mint TO=<G...address> [AMOUNT=10000000000]"; exit 1; }
-	@RFQA=$$(jq -r .contracts.tokenA deployments/$(NETWORK).json); \
-	RFQB=$$(jq -r .contracts.tokenB deployments/$(NETWORK).json); \
+	@RWA=$$(jq -r .contracts.rwa deployments/$(NETWORK).json); \
+	USD=$$(jq -r .contracts.usd deployments/$(NETWORK).json); \
 	AMT=$${AMOUNT:-10000000000}; \
-	echo "Minting $$AMT of RFQA ($$RFQA) and RFQB ($$RFQB) to $(TO) on $(NETWORK)..."; \
-	stellar contract invoke --id $$RFQA --source rfq-admin --network $(NETWORK) -- mint --to $(TO) --amount $$AMT; \
-	stellar contract invoke --id $$RFQB --source rfq-admin --network $(NETWORK) -- mint --to $(TO) --amount $$AMT; \
-	echo "Minted RFQA + RFQB to $(TO)."
+	echo "Minting $$AMT of ORWA ($$RWA) and OUSD ($$USD) to $(TO) on $(NETWORK)..."; \
+	stellar contract invoke --id $$RWA --source rfq-admin --network $(NETWORK) -- mint --to $(TO) --amount $$AMT; \
+	stellar contract invoke --id $$USD --source rfq-admin --network $(NETWORK) -- mint --to $(TO) --amount $$AMT; \
+	echo "Minted ORWA + OUSD to $(TO)."
 
 ## Send test XLM gas to a wallet via Friendbot (testnet/futurenet only).
 ##   make fund TO=G...address

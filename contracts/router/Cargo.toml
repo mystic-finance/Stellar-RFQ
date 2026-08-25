@@ -1,0 +1,20 @@
+[package]
+name = "router"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Octarine RFQ router — multi-source best-price aggregation and atomic settlement"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+orders = { path = "../../crates/orders" }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+ed25519-dalek = "2"
+rfq = { path = "../rfq" }

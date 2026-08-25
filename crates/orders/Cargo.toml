@@ -1,0 +1,15 @@
+[package]
+name = "orders"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Order types shared by the Octarine settlement contract and router"
+publish = false
+
+# rlib only: this is a type library, never deployed on its own.
+[lib]
+crate-type = ["rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
