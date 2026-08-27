@@ -24,15 +24,26 @@ pub enum DataKey {
     Listing(u64),
 }
 
+/// Bumps the entry on a read: a live order or an open listing can sit untouched
+/// past its TTL, and an archived entry fails every call until it is restored.
 fn get<T: TryFromVal<Env, Val>>(env: &Env, key: &DataKey) -> Option<T> {
-    env.storage().persistent().get(key)
+    let val = env.storage().persistent().get(key);
+    if val.is_some() {
+        env.storage()
+            .persistent()
+            .extend_ttl(key, THRESHOLD, EXTEND);
+    }
+    val
 }
 
+/// Every mutating entry point writes at least one persistent entry, so the
+/// instance TTL is refreshed here rather than in each caller.
 fn set<T: IntoVal<Env, Val>>(env: &Env, key: DataKey, val: &T) {
     env.storage().persistent().set(&key, val);
     env.storage()
         .persistent()
         .extend_ttl(&key, THRESHOLD, EXTEND);
+    extend_instance(env);
 }
 
 fn iget<T: TryFromVal<Env, Val>>(env: &Env, key: DataKey) -> Option<T> {
@@ -41,9 +52,8 @@ fn iget<T: TryFromVal<Env, Val>>(env: &Env, key: DataKey) -> Option<T> {
 
 fn iset<T: IntoVal<Env, Val>>(env: &Env, key: DataKey, val: &T) {
     env.storage().instance().set(&key, val);
+    extend_instance(env);
 }
-
-// --- instance config ---
 
 pub fn has_admin(env: &Env) -> bool {
     env.storage().instance().has(&DataKey::Admin)
@@ -87,11 +97,9 @@ pub fn next_id(env: &Env) -> u64 {
     id
 }
 
-pub fn extend_instance(env: &Env) {
+fn extend_instance(env: &Env) {
     env.storage().instance().extend_ttl(THRESHOLD, EXTEND);
 }
-
-// --- persistent state ---
 
 pub fn is_keeper(env: &Env, who: &Address) -> bool {
     get(env, &DataKey::Keeper(who.clone())).unwrap_or(false)
@@ -117,7 +125,10 @@ pub fn set_oracle(env: &Env, base: &Address, quote: &Address, cfg: &Option<Oracl
     let key = DataKey::Oracle(base.clone(), quote.clone());
     match cfg {
         Some(c) => set(env, key, c),
-        None => env.storage().persistent().remove(&key),
+        None => {
+            env.storage().persistent().remove(&key);
+            extend_instance(env);
+        }
     }
 }
 

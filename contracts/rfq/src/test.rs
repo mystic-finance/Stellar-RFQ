@@ -52,7 +52,6 @@ pub(crate) fn setup() -> Fixture {
     let pubkey = BytesN::from_array(&env, &key.verifying_key().to_bytes());
     client.register_order_signer(&maker, &pubkey, &true);
 
-    // The taker signs requests with a key of its own.
     let taker_key = SigningKey::from_bytes(&[11u8; 32]);
     client.register_order_signer(
         &taker,
@@ -60,7 +59,6 @@ pub(crate) fn setup() -> Fixture {
         &true,
     );
 
-    // RWA redeems 30 days out; rate ceiling 10 bps/day. Priced 1:1 against USD.
     client.set_schedule(
         &admin,
         &rwa,
@@ -77,6 +75,7 @@ pub(crate) fn setup() -> Fixture {
         max_fee_bps: 1_000,
         fallback_max_age: 3_600,
         max_deviation_bps: 5_000,
+        min_push_interval: 300,
         max_shift_seconds: 0,
         decay_seconds: (7 * DAY) as u32,
     });
@@ -170,14 +169,17 @@ impl Fixture {
 fn rfq_discount_is_bps_per_day_over_the_horizon() {
     let f = setup();
     let order = f.rfq();
-    // 10 bps/day over 30 days = 300 bps => 97% of face.
     let q = f.client.quote_rfq_order(&order, &1_000_000);
     assert_eq!(q.horizon_seconds, (30 * DAY) as u32);
     assert_eq!(q.maker_amount, 970_000);
 
-    let r = f
-        .client
-        .fill_rfq_order(&order, &f.sign(&f.client.hash_rfq_order(&order)), &None, &f.taker, &1_000_000);
+    let r = f.client.fill_rfq_order(
+        &order,
+        &f.sign(&f.client.hash_rfq_order(&order)),
+        &None,
+        &f.taker,
+        &1_000_000,
+    );
     assert_eq!(r.maker_filled, 970_000);
     assert_eq!(f.usd_of(&f.taker), 970_000);
     assert_eq!(f.rwa_of(&f.maker), 1_000_000);
@@ -186,7 +188,6 @@ fn rfq_discount_is_bps_per_day_over_the_horizon() {
 #[test]
 fn horizon_nets_off_the_maker_leg_schedule() {
     let f = setup();
-    // Maker token redeems in 10 days: the fill is only charged for the 20-day gap.
     f.client.set_schedule(
         &f.admin,
         &f.usd,
@@ -220,7 +221,6 @@ fn fixed_schedule_prices_to_the_second() {
     );
     assert_eq!(f.client.seconds_to_redemption(&f.rwa), 12 * 3_600);
 
-    // Past the anchor, the horizon rolls to the next cycle.
     f.env.ledger().set_timestamp(now + 13 * 3_600);
     assert_eq!(
         f.client.seconds_to_redemption(&f.rwa),
@@ -258,12 +258,14 @@ fn rfq_partial_fills_accumulate_and_cannot_overfill() {
     let order = f.rfq();
     let sig = f.sign(&f.client.hash_rfq_order(&order));
 
-    f.client.fill_rfq_order(&order, &sig, &None, &f.taker, &400_000);
+    f.client
+        .fill_rfq_order(&order, &sig, &None, &f.taker, &400_000);
     assert_eq!(
         f.client.filled_amount(&f.client.hash_rfq_order(&order)),
         400_000
     );
-    f.client.fill_rfq_order(&order, &sig, &None, &f.taker, &600_000);
+    f.client
+        .fill_rfq_order(&order, &sig, &None, &f.taker, &600_000);
     assert_eq!(f.usd_of(&f.taker), 970_000);
 
     let err = f
@@ -282,7 +284,12 @@ fn rfq_enforces_maker_cap_and_taker_floor() {
     order.max_maker_amount = 960_000;
     let err = f
         .client
-        .try_fill_rfq_order(&order, &f.sign(&f.client.hash_rfq_order(&order)), &None, &f.taker, &1_000_000,
+        .try_fill_rfq_order(
+            &order,
+            &f.sign(&f.client.hash_rfq_order(&order)),
+            &None,
+            &f.taker,
+            &1_000_000,
         )
         .err()
         .unwrap()
@@ -293,7 +300,12 @@ fn rfq_enforces_maker_cap_and_taker_floor() {
     order.min_received_amount = 980_000;
     let err = f
         .client
-        .try_fill_rfq_order(&order, &f.sign(&f.client.hash_rfq_order(&order)), &None, &f.taker, &1_000_000,
+        .try_fill_rfq_order(
+            &order,
+            &f.sign(&f.client.hash_rfq_order(&order)),
+            &None,
+            &f.taker,
+            &1_000_000,
         )
         .err()
         .unwrap()
@@ -309,7 +321,12 @@ fn fee_is_skimmed_from_the_maker_output() {
     order.fee_bps = 100;
     order.fee_recipient = recipient.clone();
 
-    let r = f.client.fill_rfq_order(&order, &f.sign(&f.client.hash_rfq_order(&order)), &None, &f.taker, &1_000_000,
+    let r = f.client.fill_rfq_order(
+        &order,
+        &f.sign(&f.client.hash_rfq_order(&order)),
+        &None,
+        &f.taker,
+        &1_000_000,
     );
     assert_eq!(r.maker_filled, 970_000);
     assert_eq!(r.fee, 9_700);
@@ -321,7 +338,12 @@ fn fee_is_skimmed_from_the_maker_output() {
 fn fixed_order_ignores_the_rate_model() {
     let f = setup();
     let order = f.fixed();
-    let r = f.client.fill_fixed_order(&order, &f.sign(&f.client.hash_fixed_order(&order)), &None, &f.taker, &500_000,
+    let r = f.client.fill_fixed_order(
+        &order,
+        &f.sign(&f.client.hash_fixed_order(&order)),
+        &None,
+        &f.taker,
+        &500_000,
     );
     assert_eq!(r.maker_filled, 450_000);
     assert_eq!(f.usd_of(&f.taker), 450_000);
@@ -343,7 +365,6 @@ fn dutch_ask_decays_and_fills_against_escrow() {
     assert_eq!(f.rwa_of(&f.client.address), 1_000_000);
     assert_eq!(f.client.current_ask(&id), 1_000_000);
 
-    // Half of the 7-day decay: midway between 1_000_000 and 800_000.
     f.env
         .ledger()
         .set_timestamp(f.env.ledger().timestamp() + 3 * DAY + DAY / 2);
@@ -384,7 +405,6 @@ fn cancelling_a_salt_voids_both_sides_book_under_it() {
     let order = f.rfq();
     let sig = f.sign(&f.client.hash_rfq_order(&order));
 
-    // The maker retracts everything it signed under this salt.
     f.client.cancel_salt(&f.maker, &f.maker, &order.salt);
     assert!(f.client.is_salt_cancelled(&f.maker, &order.salt));
     let err = f
@@ -395,7 +415,6 @@ fn cancelling_a_salt_voids_both_sides_book_under_it() {
         .unwrap();
     assert_eq!(err, Error::SaltIsCancelled.into());
 
-    // A different salt is untouched.
     let mut other = f.rfq();
     other.salt = 2;
     let sig = f.sign(&f.client.hash_rfq_order(&other));
@@ -406,7 +425,6 @@ fn cancelling_a_salt_voids_both_sides_book_under_it() {
         1_000
     );
 
-    // A key the maker registered can retract on its behalf; a stranger cannot.
     let stranger = Address::generate(&f.env);
     assert!(f
         .client
@@ -453,7 +471,12 @@ fn pause_blocks_fills() {
     let order = f.rfq();
     let err = f
         .client
-        .try_fill_rfq_order(&order, &f.sign(&f.client.hash_rfq_order(&order)), &None, &f.taker, &1_000,
+        .try_fill_rfq_order(
+            &order,
+            &f.sign(&f.client.hash_rfq_order(&order)),
+            &None,
+            &f.taker,
+            &1_000,
         )
         .err()
         .unwrap()
@@ -474,7 +497,6 @@ fn pushed_price_needs_a_live_epoch_and_bounded_deviation() {
         .unwrap();
     assert_eq!(err, Error::PriceDeviation.into());
 
-    // Repointing the reference asset retires every pushed price.
     f.client.set_reference(&Address::generate(&f.env));
     let err = f
         .client
@@ -495,6 +517,7 @@ fn keeper_schedule_shift_is_bounded() {
         max_fee_bps: 1_000,
         fallback_max_age: 3_600,
         max_deviation_bps: 5_000,
+        min_push_interval: 300,
         max_shift_seconds: DAY as u32,
         decay_seconds: (7 * DAY) as u32,
     });
@@ -509,12 +532,10 @@ fn keeper_schedule_shift_is_bounded() {
         .unwrap();
     assert_eq!(err, Error::ScheduleShiftTooLarge.into());
 
-    // The admin is not bound by the keeper's shift limit.
     f.client.set_schedule(&f.admin, &f.rwa, &schedule);
     assert_eq!(f.client.seconds_to_redemption(&f.rwa), (25 * DAY) as u32);
 }
 
-/// Minimal SEP-40 feed, 14 decimals.
 #[soroban_sdk::contract]
 pub struct MockFeed;
 
@@ -570,7 +591,6 @@ fn registered_oracle_prices_the_fill_and_staleness_falls_back() {
         }),
     );
 
-    // The feed now sets the price: 1 RWA = 2 USD, less the 300 bps discount.
     assert_eq!(f.client.price_of(&f.rwa, &f.usd), ONE * 2);
     let mut order = f.rfq();
     order.max_maker_amount = 2_000_000;
@@ -579,14 +599,16 @@ fn registered_oracle_prices_the_fill_and_staleness_falls_back() {
         1_940_000
     );
 
-    // Past the feed's staleness bound it is ignored and the backstop takes over.
     f.env.ledger().set_timestamp(now + 1_000);
     assert_eq!(f.client.price_of(&f.rwa, &f.usd), ONE);
 
-    // Once the backstop is stale too, there is no price at all.
     f.env.ledger().set_timestamp(now + 4_000);
     assert_eq!(
-        f.client.try_price_of(&f.rwa, &f.usd).err().unwrap().unwrap(),
+        f.client
+            .try_price_of(&f.rwa, &f.usd)
+            .err()
+            .unwrap()
+            .unwrap(),
         Error::NoPrice.into()
     );
 }
@@ -612,12 +634,8 @@ fn sep53_digest_matches_reference() {
     );
 }
 
-// --------------------------------------------------------------- token skew
-
 use crate::mock_token::{SkewToken, SkewTokenClient};
 
-/// Settlement over tokens that credit the receiver something other than what was
-/// sent, plus the auth gate. `tax_bps` burns in flight, `bonus_bps` over-credits.
 fn skewed(tax_bps: i128, bonus_bps: i128) -> (Fixture, SkewTokenClient<'static>) {
     let f = setup();
     let token = f.env.register(SkewToken, ());
@@ -626,7 +644,6 @@ fn skewed(tax_bps: i128, bonus_bps: i128) -> (Fixture, SkewTokenClient<'static>)
     client.mint(&f.taker, &HUGE);
     client.approve(&f.taker, &f.client.address, &HUGE, &0u32);
 
-    // Price and schedule the skewed token exactly like the plain RWA.
     f.client.set_schedule(
         &f.admin,
         &token,
@@ -644,13 +661,17 @@ fn skewed(tax_bps: i128, bonus_bps: i128) -> (Fixture, SkewTokenClient<'static>)
 
 #[test]
 fn a_taxed_taker_token_is_priced_on_what_actually_arrived() {
-    let (f, token) = skewed(100, 0); // 1% burned in flight
+    let (f, token) = skewed(100, 0);
     let mut order = f.rfq();
     order.taker_token = token.address.clone();
     order.min_received_amount = 1;
 
-    // 1_000_000 sent, 990_000 credited to the maker, quoted at 97% of that.
-    let r = f.client.fill_rfq_order(&order, &f.sign(&f.client.hash_rfq_order(&order)), &None, &f.taker, &1_000_000,
+    let r = f.client.fill_rfq_order(
+        &order,
+        &f.sign(&f.client.hash_rfq_order(&order)),
+        &None,
+        &f.taker,
+        &1_000_000,
     );
     assert_eq!(token.balance(&f.maker), 990_000);
     assert_eq!(r.maker_filled, 960_300);
@@ -662,12 +683,16 @@ fn a_taxed_taker_token_cannot_walk_under_the_takers_floor() {
     let (f, token) = skewed(100, 0);
     let mut order = f.rfq();
     order.taker_token = token.address.clone();
-    // The taker signed for the untaxed payout; the tax must not be their loss.
     order.min_received_amount = 970_000;
 
     let err = f
         .client
-        .try_fill_rfq_order(&order, &f.sign(&f.client.hash_rfq_order(&order)), &None, &f.taker, &1_000_000,
+        .try_fill_rfq_order(
+            &order,
+            &f.sign(&f.client.hash_rfq_order(&order)),
+            &None,
+            &f.taker,
+            &1_000_000,
         )
         .err()
         .unwrap()
@@ -678,14 +703,18 @@ fn a_taxed_taker_token_cannot_walk_under_the_takers_floor() {
 
 #[test]
 fn an_over_crediting_taker_token_cannot_inflate_the_makers_bill() {
-    let (f, token) = skewed(0, 100); // credits 1% more than it was sent
+    let (f, token) = skewed(0, 100);
     let mut order = f.rfq();
     order.taker_token = token.address.clone();
     order.min_received_amount = 1;
 
-    let r = f.client.fill_rfq_order(&order, &f.sign(&f.client.hash_rfq_order(&order)), &None, &f.taker, &1_000_000,
+    let r = f.client.fill_rfq_order(
+        &order,
+        &f.sign(&f.client.hash_rfq_order(&order)),
+        &None,
+        &f.taker,
+        &1_000_000,
     );
-    // The maker was credited 1_010_000 but is billed on the 1_000_000 it agreed to.
     assert_eq!(token.balance(&f.maker), 1_010_000);
     assert_eq!(r.maker_filled, 970_000);
 }
@@ -699,7 +728,6 @@ fn dutch_escrow_records_what_arrived_and_rescales_the_curve() {
     let id = f.client.create_dutch_order(&f.taker, &order);
     let listing = f.client.get_listing(&id).unwrap();
 
-    // 990_000 escrowed, with the start and floor scaled to match.
     assert_eq!(listing.order.taker_amount, 990_000);
     assert_eq!(token.balance(&f.client.address), 990_000);
     assert_eq!(listing.order.start_maker_amount, 990_000);
@@ -712,26 +740,24 @@ fn anyone_can_submit_a_fill_the_taker_signed_for() {
     let f = setup();
     let relayer = Address::generate(&f.env);
 
-    // The taker signs their own request up front; the maker bids on top.
     let mut order = f.rfq();
     order.taker = Some(f.taker.clone());
     let taker_sig = f.sign_as(&f.taker_key, &f.client.hash_request(&order.request()));
     let maker_sig = f.sign(&f.client.hash_rfq_order(&order));
 
-    // A relayer with no stake in the trade lands it. Neither counterparty is in
-    // the transaction; both consented off-chain.
-    let r = f
-        .client
-        .fill_rfq_order(&order, &maker_sig, &Some(taker_sig.clone()), &relayer, &400_000);
+    let r = f.client.fill_rfq_order(
+        &order,
+        &maker_sig,
+        &Some(taker_sig.clone()),
+        &relayer,
+        &400_000,
+    );
     assert_eq!(r.taker_filled, 400_000);
     assert_eq!(f.usd_of(&f.taker), 388_000);
 
-    // The request tracks its own fills, so the taker's signed size is a ceiling
-    // no matter how many bids are matched against it.
     let request_hash = f.client.hash_request(&order.request());
     assert_eq!(f.client.request_filled_amount(&request_hash), 400_000);
 
-    // Without the taker's signature the same call is refused.
     let err = f
         .client
         .try_fill_rfq_order(&order, &maker_sig, &None, &relayer, &1_000)
@@ -746,14 +772,12 @@ fn only_the_named_sender_may_submit() {
     let f = setup();
     let relayer = Address::generate(&f.env);
 
-    // The taker pins execution to one relayer: their assets, that submitter.
     let mut order = f.rfq();
     order.taker = Some(f.taker.clone());
     order.sender = Some(relayer.clone());
     let taker_sig = Some(f.sign_as(&f.taker_key, &f.client.hash_request(&order.request())));
     let maker_sig = f.sign(&f.client.hash_rfq_order(&order));
 
-    // Even the taker itself cannot land it — the request named someone else.
     let err = f
         .client
         .try_fill_rfq_order(&order, &maker_sig, &taker_sig, &f.taker, &1_000)
@@ -776,7 +800,6 @@ fn a_fill_needs_the_takers_authorisation() {
     let order = f.rfq();
     let sig = f.sign(&f.client.hash_rfq_order(&order));
 
-    // No auth entries at all: the taker never consented, so nothing settles.
     f.env.set_auths(&[]);
     assert!(f
         .client
@@ -785,8 +808,9 @@ fn a_fill_needs_the_takers_authorisation() {
     assert_eq!(f.usd_of(&f.taker), 0);
     assert_eq!(f.client.filled_amount(&f.client.hash_rfq_order(&order)), 0);
 
-    // With the taker's authorisation the same call settles.
     f.env.mock_all_auths();
-    let r = f.client.fill_rfq_order(&order, &sig, &None, &f.taker, &1_000);
+    let r = f
+        .client
+        .fill_rfq_order(&order, &sig, &None, &f.taker, &1_000);
     assert_eq!(r.taker_filled, 1_000);
 }

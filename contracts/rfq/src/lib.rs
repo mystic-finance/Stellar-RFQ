@@ -1,6 +1,6 @@
 #![no_std]
-//! Octarine settlement for Stellar — duration-priced RFQ, fixed orders and Dutch
-//! listings over SEP-41 tokens. See README.md for the model and the flows.
+//! Octarine settlement: duration-priced RFQ, fixed orders and Dutch listings
+//! over SEP-41 tokens. See README.md.
 
 mod errors;
 mod hash;
@@ -35,12 +35,12 @@ pub struct RfqContract;
 
 #[contractimpl]
 impl RfqContract {
-    // ---------------------------------------------------------------- setup
-
     pub fn initialize(env: Env, admin: Address, reference: Address) {
         if storage::has_admin(&env) {
             panic_with_error!(&env, Error::AlreadyInitialized);
         }
+        // Deploy and initialize are not necessarily one transaction.
+        admin.require_auth();
         storage::set_admin(&env, &admin);
         storage::set_reference(
             &env,
@@ -56,11 +56,11 @@ impl RfqContract {
                 max_fee_bps: 1_000,
                 fallback_max_age: 0,
                 max_deviation_bps: 2_000,
+                min_push_interval: 300,
                 max_shift_seconds: 2 * 86_400,
                 decay_seconds: 0,
             },
         );
-        storage::extend_instance(&env);
     }
 
     pub fn upgrade(env: Env, new_wasm_hash: BytesN<32>) {
@@ -84,8 +84,6 @@ impl RfqContract {
         storage::paused(&env)
     }
 
-    // ----------------------------------------------------------- governance
-
     pub fn set_config(env: Env, cfg: Config) {
         storage::admin(&env).require_auth();
         if cfg.min_fee_bps > cfg.max_fee_bps
@@ -95,15 +93,12 @@ impl RfqContract {
             panic_with_error!(&env, Error::InvalidConfig);
         }
         storage::set_config(&env, &cfg);
-        storage::extend_instance(&env);
     }
 
-    /// Repoint the reference asset. Bumps the epoch, invalidating pushed prices.
     pub fn set_reference(env: Env, asset: Address) {
         storage::admin(&env).require_auth();
         let epoch = storage::reference(&env).epoch + 1;
         storage::set_reference(&env, &Reference { asset, epoch });
-        storage::extend_instance(&env);
     }
 
     pub fn set_keeper(env: Env, keeper: Address, allowed: bool) {
@@ -116,7 +111,6 @@ impl RfqContract {
         storage::set_paused(&env, paused);
     }
 
-    /// Register (`Some`) or clear (`None`) the feed for a `(base, quote)` pair.
     pub fn set_oracle(env: Env, base: Address, quote: Address, cfg: Option<OracleCfg>) {
         storage::admin(&env).require_auth();
         if let Some(c) = &cfg {
@@ -131,52 +125,38 @@ impl RfqContract {
         let is_admin = Self::keeper_auth(&env, &caller);
         price::validate_schedule(&env, &schedule);
         if !is_admin {
-            let max = storage::config(&env).max_shift_seconds;
-            if let Some(prev) = storage::schedule(&env, &asset) {
-                let horizon = price::seconds_for(&env, &prev)
-                    .abs_diff(price::seconds_for(&env, &schedule));
-                let amplitude = Self::amplitude(&prev).abs_diff(Self::amplitude(&schedule));
-                if max > 0 && (horizon > max || amplitude > max) {
-                    panic_with_error!(&env, Error::ScheduleShiftTooLarge);
-                }
-            }
+            Self::check_keeper_shift(&env, &asset, &schedule);
         }
         storage::set_schedule(&env, &asset, &schedule);
         env.events()
             .publish((symbol_short!("sched"), asset), schedule);
     }
 
-    /// Backstop price of `asset` in the reference asset, 1e18-scaled.
     pub fn push_price(env: Env, caller: Address, asset: Address, new_price: i128) {
-        Self::keeper_auth(&env, &caller);
+        let is_admin = Self::keeper_auth(&env, &caller);
         if new_price <= 0 {
             panic_with_error!(&env, Error::InvalidAmount);
         }
         let epoch = storage::reference(&env).epoch;
-        let max_dev = storage::config(&env).max_deviation_bps;
-        if let Some(prev) = storage::fallback(&env, &asset) {
-            let diff = (new_price - prev.price).abs();
-            if prev.epoch == epoch
-                && max_dev > 0
-                && mul_div(&env, diff, BPS, prev.price) > max_dev as i128
-            {
-                panic_with_error!(&env, Error::PriceDeviation);
+        let now = env.ledger().timestamp();
+        match storage::fallback(&env, &asset) {
+            Some(prev) if prev.epoch == epoch => {
+                Self::check_price_move(&env, &prev, new_price, now, is_admin)
             }
+            _ => {}
         }
         storage::set_fallback(
             &env,
             &asset,
             &PushedPrice {
                 price: new_price,
-                updated_at: env.ledger().timestamp(),
+                updated_at: now,
                 epoch,
             },
         );
         env.events()
             .publish((symbol_short!("price"), asset), new_price);
     }
-
-    // ---------------------------------------------------------------- views
 
     pub fn seconds_to_redemption(env: Env, asset: Address) -> u32 {
         price::seconds_to_redemption(&env, &asset)
@@ -222,20 +202,13 @@ impl RfqContract {
         storage::listing(&env, id)
     }
 
-    // ---------------------------------------------- signers & cancellation
-
     pub fn register_order_signer(env: Env, maker: Address, signer: BytesN<32>, allowed: bool) {
         maker.require_auth();
         storage::set_signer(&env, &maker, &signer, allowed);
     }
 
-    /// Void every unfilled order `signer` put under this salt — both the taker's
-    /// request and any maker bid adopting it. Callable by the signer or by a key
-    /// they registered.
     pub fn cancel_salt(env: Env, caller: Address, signer: Address, salt: u64) {
         caller.require_auth();
-        // A delegated signer is registered by its ed25519 key, and a G... address
-        // is that key, so a hot key can retract the book it signed.
         let delegated = Self::account_pubkey(&env, &caller)
             .map(|pk| storage::is_signer(&env, &signer, &pk))
             .unwrap_or(false);
@@ -246,8 +219,6 @@ impl RfqContract {
         env.events()
             .publish((symbol_short!("salt_cxl"), signer), salt);
     }
-
-    // ------------------------------------------------------------ RFQ fills
 
     pub fn quote_rfq_order(env: Env, order: RfqOrder, taker_amount_in: i128) -> Quote {
         Self::quote(&env, &order, taker_amount_in)
@@ -327,8 +298,6 @@ impl RfqContract {
         }
     }
 
-    // ---------------------------------------------------------- fixed fills
-
     pub fn fill_fixed_order(
         env: Env,
         order: FixedOrder,
@@ -389,24 +358,10 @@ impl RfqContract {
         }
     }
 
-    // -------------------------------------------------------- Dutch listings
-
     pub fn create_dutch_order(env: Env, seller: Address, order: DutchOrder) -> u64 {
         seller.require_auth();
-        Self::not_paused(&env);
-        if order.maker_token == order.taker_token {
-            panic_with_error!(&env, Error::SameToken);
-        }
-        if order.taker_amount <= 0
-            || order.min_maker_amount <= 0
-            || order.start_maker_amount < order.min_maker_amount
-        {
-            panic_with_error!(&env, Error::InvalidAmount);
-        }
-        if order.expiry != 0 && order.expiry <= env.ledger().timestamp() {
-            panic_with_error!(&env, Error::OrderNotFillable);
-        }
-        Self::check_fee(&env, order.fee_bps);
+        let decay_seconds = storage::config(&env).decay_seconds;
+        Self::check_listing(&env, &order, decay_seconds);
 
         let escrowed = Self::deliver(
             &env,
@@ -415,17 +370,7 @@ impl RfqContract {
             &env.current_contract_address(),
             order.taker_amount,
         );
-        let mut terms = order;
-        if escrowed != terms.taker_amount {
-            terms.start_maker_amount =
-                mul_div(&env, terms.start_maker_amount, escrowed, terms.taker_amount);
-            terms.min_maker_amount =
-                mul_div(&env, terms.min_maker_amount, escrowed, terms.taker_amount);
-            terms.taker_amount = escrowed;
-            if terms.min_maker_amount <= 0 {
-                panic_with_error!(&env, Error::InvalidAmount);
-            }
-        }
+        let terms = Self::rescale(&env, order, escrowed);
 
         let id = storage::next_id(&env);
         storage::set_listing(
@@ -435,11 +380,10 @@ impl RfqContract {
                 order: terms,
                 seller: seller.clone(),
                 created_at: env.ledger().timestamp(),
-                decay_seconds: storage::config(&env).decay_seconds,
+                decay_seconds,
                 active: true,
             },
         );
-        storage::extend_instance(&env);
         env.events()
             .publish((symbol_short!("dutch_new"), id), (seller, escrowed));
         id
@@ -515,8 +459,6 @@ impl RfqContract {
         env.events().publish((symbol_short!("dutch_cxl"), id), ());
     }
 
-    // ------------------------------------------------------------ internals
-
     fn quote(env: &Env, order: &RfqOrder, taker_amount_in: i128) -> Quote {
         let (horizon_seconds, cap) = price::horizon(env, &order.taker_token, &order.maker_token);
         if order.maker_bps_per_day > cap || order.maker_bps_per_day > order.taker_max_bps_per_day {
@@ -536,6 +478,51 @@ impl RfqContract {
         }
     }
 
+    fn check_listing(env: &Env, order: &DutchOrder, decay_seconds: u32) {
+        Self::not_paused(env);
+        if order.maker_token == order.taker_token {
+            panic_with_error!(env, Error::SameToken);
+        }
+        if order.expiry != 0 && order.expiry <= env.ledger().timestamp() {
+            panic_with_error!(env, Error::OrderNotFillable);
+        }
+        Self::check_listing_amounts(env, order);
+        Self::check_curve(env, order, decay_seconds);
+        Self::check_fee(env, order.fee_bps);
+    }
+
+    fn check_listing_amounts(env: &Env, order: &DutchOrder) {
+        if order.taker_amount <= 0
+            || order.min_maker_amount <= 0
+            || order.start_maker_amount < order.min_maker_amount
+        {
+            panic_with_error!(env, Error::InvalidAmount);
+        }
+    }
+
+    /// With no decay window the ask rests on the floor from the first second, so a
+    /// curve would be stored and never applied.
+    fn check_curve(env: &Env, order: &DutchOrder, decay_seconds: u32) {
+        if decay_seconds == 0 && order.start_maker_amount != order.min_maker_amount {
+            panic_with_error!(env, Error::InvalidConfig);
+        }
+    }
+
+    fn rescale(env: &Env, order: DutchOrder, escrowed: i128) -> DutchOrder {
+        if escrowed == order.taker_amount {
+            return order;
+        }
+        let mut terms = order;
+        terms.start_maker_amount =
+            mul_div(env, terms.start_maker_amount, escrowed, terms.taker_amount);
+        terms.min_maker_amount = mul_div(env, terms.min_maker_amount, escrowed, terms.taker_amount);
+        terms.taker_amount = escrowed;
+        if terms.min_maker_amount <= 0 {
+            panic_with_error!(env, Error::InvalidAmount);
+        }
+        terms
+    }
+
     fn ask(env: &Env, listing: &Listing) -> i128 {
         let start = listing.order.start_maker_amount;
         let floor = listing.order.min_maker_amount;
@@ -552,9 +539,6 @@ impl RfqContract {
             )
     }
 
-    /// Every check both order types share, plus the taker's consent, in one
-    /// place. Returns the resolved taker: the request's, or the sender on an
-    /// open request.
     fn validate_common(
         env: &Env,
         r: &Request,
@@ -563,25 +547,8 @@ impl RfqContract {
         sender: &Address,
         taker_amount_in: i128,
     ) -> Address {
-        Self::not_paused(env);
-        if r.maker_token == r.taker_token {
-            panic_with_error!(env, Error::SameToken);
-        }
-        if taker_amount_in <= 0 || r.taker_amount <= 0 {
-            panic_with_error!(env, Error::InvalidAmount);
-        }
-        if env.ledger().timestamp() >= r.expiry {
-            panic_with_error!(env, Error::OrderNotFillable);
-        }
-        if let Some(only) = &r.sender {
-            if only != sender {
-                panic_with_error!(env, Error::WrongSender);
-            }
-        }
-        if r.min_received_amount <= 0 {
-            panic_with_error!(env, Error::InvalidAmount);
-        }
-        Self::check_fee(env, r.fee_bps);
+        Self::check_terms(env, r, taker_amount_in);
+        Self::check_sender(env, r, sender);
         if storage::is_salt_cancelled(env, maker, r.salt) {
             panic_with_error!(env, Error::SaltIsCancelled);
         }
@@ -594,25 +561,63 @@ impl RfqContract {
             panic_with_error!(env, Error::SaltIsCancelled);
         }
 
-        // A named taker consents off-chain, so anyone may submit the fill. When
-        // the taker submits it themselves their own auth already said so.
         let request_hash = hash::request(env, r);
-        if &taker != sender {
-            match taker_signature {
-                Some(sig) => Self::verify(env, &taker, &request_hash, sig),
-                None => panic_with_error!(env, Error::SignerNotAuthorized),
-            }
-        }
-
-        let filled = storage::request_filled(env, &request_hash);
-        if filled + taker_amount_in > r.taker_amount {
-            panic_with_error!(env, Error::RequestOverfilled);
-        }
-        storage::set_request_filled(env, &request_hash, filled + taker_amount_in);
+        Self::check_taker_consent(env, &taker, sender, &request_hash, taker_signature);
+        Self::book_request(env, &request_hash, r.taker_amount, taker_amount_in);
         taker
     }
 
-    /// Books the fill against the maker's order before any funds move.
+    fn check_terms(env: &Env, r: &Request, taker_amount_in: i128) {
+        Self::not_paused(env);
+        if r.maker_token == r.taker_token {
+            panic_with_error!(env, Error::SameToken);
+        }
+        if taker_amount_in <= 0 || r.taker_amount <= 0 || r.min_received_amount <= 0 {
+            panic_with_error!(env, Error::InvalidAmount);
+        }
+        if env.ledger().timestamp() >= r.expiry {
+            panic_with_error!(env, Error::OrderNotFillable);
+        }
+        Self::check_fee(env, r.fee_bps);
+    }
+
+    fn check_sender(env: &Env, r: &Request, sender: &Address) {
+        if let Some(only) = &r.sender {
+            if only != sender {
+                panic_with_error!(env, Error::WrongSender);
+            }
+        }
+    }
+
+    fn check_taker_consent(
+        env: &Env,
+        taker: &Address,
+        sender: &Address,
+        request_hash: &BytesN<32>,
+        taker_signature: &Option<Signature>,
+    ) {
+        if taker == sender {
+            return;
+        }
+        match taker_signature {
+            Some(sig) => Self::verify(env, taker, request_hash, sig),
+            None => panic_with_error!(env, Error::SignerNotAuthorized),
+        }
+    }
+
+    fn book_request(
+        env: &Env,
+        request_hash: &BytesN<32>,
+        taker_amount: i128,
+        taker_amount_in: i128,
+    ) {
+        let filled = storage::request_filled(env, request_hash);
+        if filled + taker_amount_in > taker_amount {
+            panic_with_error!(env, Error::RequestOverfilled);
+        }
+        storage::set_request_filled(env, request_hash, filled + taker_amount_in);
+    }
+
     fn take_fill(env: &Env, order_hash: &BytesN<32>, taker_amount: i128, taker_amount_in: i128) {
         let filled = storage::filled(env, order_hash);
         if filled + taker_amount_in > taker_amount {
@@ -621,8 +626,8 @@ impl RfqContract {
         storage::set_filled(env, order_hash, filled + taker_amount_in);
     }
 
-    /// Moves the taker leg and reports what the receiver was actually credited,
-    /// clamped to `amount`.
+    /// Reports what the receiver was actually credited, clamped to `amount`, so a
+    /// transfer-taxed or rebasing token is priced on what arrived.
     fn deliver(env: &Env, tok: &Address, from: &Address, to: &Address, amount: i128) -> i128 {
         let client = token::Client::new(env, tok);
         let before = client.balance(to);
@@ -638,7 +643,6 @@ impl RfqContract {
         }
     }
 
-    /// Counterparty and fee recipient are both paid out of `payer`'s pocket.
     fn pay(
         env: &Env,
         tok: &Address,
@@ -660,7 +664,6 @@ impl RfqContract {
         client.balance(to) - before
     }
 
-    /// The taker's signed floor, pro-rated to this slice and rounded up.
     fn check_floor(
         env: &Env,
         received: i128,
@@ -688,7 +691,8 @@ impl RfqContract {
         }
     }
 
-    /// ed25519 key of a `G…` account address; `None` for contract addresses.
+    /// ed25519 key of a `G...` account address; `None` for a contract address. The
+    /// key sits at byte 12 of the 44-byte ScVal XDR; contract addresses are 40.
     fn account_pubkey(env: &Env, maker: &Address) -> Option<BytesN<32>> {
         let xdr = maker.clone().to_xdr(env);
         if xdr.len() != 44 {
@@ -721,7 +725,6 @@ impl RfqContract {
         }
     }
 
-    /// Authorises admin or a registered keeper; returns whether it was the admin.
     fn keeper_auth(env: &Env, caller: &Address) -> bool {
         caller.require_auth();
         if caller == &storage::admin(env) {
@@ -731,6 +734,43 @@ impl RfqContract {
             panic_with_error!(env, Error::NotAuthorized);
         }
         false
+    }
+
+    /// The interval is what makes `max_deviation_bps` bound a transaction and not
+    /// just a single call. It floors at one ledger however it is configured.
+    fn check_price_move(env: &Env, prev: &PushedPrice, new_price: i128, now: u64, is_admin: bool) {
+        let cfg = storage::config(env);
+        if !is_admin && now < prev.updated_at.saturating_add(cfg.min_push_interval.max(1)) {
+            panic_with_error!(env, Error::PriceUpdateTooSoon);
+        }
+        if cfg.max_deviation_bps == 0 {
+            return;
+        }
+        let diff = (new_price - prev.price).abs();
+        if mul_div(env, diff, BPS, prev.price) > cfg.max_deviation_bps as i128 {
+            panic_with_error!(env, Error::PriceDeviation);
+        }
+    }
+
+    /// Keepers maintain schedules; only the admin onboards an asset or raises its
+    /// rate ceiling, which is the sole protocol-side bound on maker discounts.
+    fn check_keeper_shift(env: &Env, asset: &Address, schedule: &Schedule) {
+        let prev = match storage::schedule(env, asset) {
+            Some(prev) => prev,
+            None => panic_with_error!(env, Error::NotAuthorized),
+        };
+        if schedule.max_bps_per_day > prev.max_bps_per_day {
+            panic_with_error!(env, Error::ScheduleShiftTooLarge);
+        }
+        let max = storage::config(env).max_shift_seconds;
+        if max == 0 {
+            return;
+        }
+        let horizon = price::seconds_for(env, &prev).abs_diff(price::seconds_for(env, schedule));
+        let amplitude = Self::amplitude(&prev).abs_diff(Self::amplitude(schedule));
+        if horizon > max || amplitude > max {
+            panic_with_error!(env, Error::ScheduleShiftTooLarge);
+        }
     }
 
     fn amplitude(s: &Schedule) -> u32 {

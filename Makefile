@@ -1,9 +1,9 @@
 NETWORK ?= testnet
 export NETWORK
 
-.PHONY: all build test wasm fmt clean setup deploy seed-demo e2e mint fund
+.PHONY: all build test lint complexity wasm fmt clean setup deploy seed-demo e2e mint fund
 
-all: build test
+all: build test lint
 
 ## Build the contract for host (debug) — used by tests.
 build:
@@ -12,6 +12,15 @@ build:
 ## Run the contract unit-test suite.
 test:
 	cargo test --workspace
+
+## Clippy, with the complexity gate from clippy.toml, warnings as errors.
+lint:
+	cargo clippy --workspace --all-targets -- -W clippy::cognitive_complexity -D warnings
+
+## Cyclomatic complexity per function (needs `pip install lizard`).
+##   Thresholds: <=5 fine, 6-10 watch, 11-15 refactor, 15+ split.
+complexity:
+	lizard contracts/*/src crates/*/src -l rust --CCN 11 -w
 
 ## Build the on-chain WASM and optimise it.
 wasm:

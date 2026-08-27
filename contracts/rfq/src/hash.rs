@@ -26,7 +26,6 @@ pub fn fixed_order(env: &Env, order: &FixedOrder) -> BytesN<32> {
     digest(env, FIXED_DOMAIN, order.clone().to_xdr(env))
 }
 
-/// `SHA256("Stellar Signed Message:\n" || order_hash)` — what a SEP-53 wallet signs.
 pub fn sep53(env: &Env, order_hash: &BytesN<32>) -> BytesN<32> {
     let mut buf = Bytes::from_slice(env, SEP53_PREFIX);
     buf.append(&Bytes::from_array(env, &order_hash.to_array()));

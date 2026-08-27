@@ -1,14 +1,7 @@
 #![no_std]
-//! A minimal fungible token implementing the Soroban token interface entry
-//! points used by the RFQ contract and demo: `mint`, `balance`, `approve`,
-//! `allowance`, `transfer`, `transfer_from`, plus metadata.
-//!
-//! Unlike a wrapped classic asset (Stellar Asset Contract), this needs no
-//! trustlines — `mint` simply credits a balance — which keeps the end-to-end
-//! demo self-contained. It is **not** meant for production use.
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype, panic_with_error, contracterror, Address, Env, String,
+    contract, contracterror, contractimpl, contracttype, panic_with_error, Address, Env, String,
 };
 
 #[contracterror]
@@ -43,7 +36,7 @@ pub enum DataKey {
     Admin,
     Meta,
     Balance(Address),
-    Allowance(Address, Address), // (from, spender)
+    Allowance(Address, Address),
 }
 
 fn read_balance(env: &Env, id: &Address) -> i128 {
@@ -63,7 +56,10 @@ fn read_allowance(env: &Env, from: &Address, spender: &Address) -> AllowanceValu
     env.storage()
         .persistent()
         .get(&DataKey::Allowance(from.clone(), spender.clone()))
-        .unwrap_or(AllowanceValue { amount: 0, expiration_ledger: 0 })
+        .unwrap_or(AllowanceValue {
+            amount: 0,
+            expiration_ledger: 0,
+        })
 }
 
 fn check_nonneg(env: &Env, amount: i128) {
@@ -82,9 +78,14 @@ impl TestToken {
             panic_with_error!(&env, TokenError::AlreadyInitialized);
         }
         env.storage().instance().set(&DataKey::Admin, &admin);
-        env.storage()
-            .instance()
-            .set(&DataKey::Meta, &Meta { decimal, name, symbol });
+        env.storage().instance().set(
+            &DataKey::Meta,
+            &Meta {
+                decimal,
+                name,
+                symbol,
+            },
+        );
     }
 
     pub fn mint(env: Env, to: Address, amount: i128) {
@@ -108,15 +109,26 @@ impl TestToken {
         }
     }
 
-    pub fn approve(env: Env, from: Address, spender: Address, amount: i128, expiration_ledger: u32) {
+    pub fn approve(
+        env: Env,
+        from: Address,
+        spender: Address,
+        amount: i128,
+        expiration_ledger: u32,
+    ) {
         check_nonneg(&env, amount);
         from.require_auth();
         env.storage().persistent().set(
             &DataKey::Allowance(from.clone(), spender.clone()),
-            &AllowanceValue { amount, expiration_ledger },
+            &AllowanceValue {
+                amount,
+                expiration_ledger,
+            },
         );
-        env.events()
-            .publish((soroban_sdk::symbol_short!("approve"), from, spender), (amount, expiration_ledger));
+        env.events().publish(
+            (soroban_sdk::symbol_short!("approve"), from, spender),
+            (amount, expiration_ledger),
+        );
     }
 
     pub fn transfer(env: Env, from: Address, to: Address, amount: i128) {
@@ -147,8 +159,6 @@ impl TestToken {
         m.symbol
     }
 
-    // --- internals ---
-
     fn do_transfer(env: &Env, from: &Address, to: &Address, amount: i128) {
         let from_balance = read_balance(env, from);
         if from_balance < amount {
@@ -156,8 +166,14 @@ impl TestToken {
         }
         write_balance(env, from, from_balance - amount);
         write_balance(env, to, read_balance(env, to) + amount);
-        env.events()
-            .publish((soroban_sdk::symbol_short!("transfer"), from.clone(), to.clone()), amount);
+        env.events().publish(
+            (
+                soroban_sdk::symbol_short!("transfer"),
+                from.clone(),
+                to.clone(),
+            ),
+            amount,
+        );
     }
 
     fn spend_allowance(env: &Env, from: &Address, spender: &Address, amount: i128) {
@@ -168,7 +184,10 @@ impl TestToken {
         }
         env.storage().persistent().set(
             &DataKey::Allowance(from.clone(), spender.clone()),
-            &AllowanceValue { amount: a.amount - amount, expiration_ledger: a.expiration_ledger },
+            &AllowanceValue {
+                amount: a.amount - amount,
+                expiration_ledger: a.expiration_ledger,
+            },
         );
     }
 }

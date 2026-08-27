@@ -5,13 +5,10 @@ pub use orders::{FillResult, FixedOrder, OrderType, Request, RfqOrder, Signature
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ScheduleMode {
-    /// Always T+N: `rolling_seconds` regardless of the date.
     Rolling,
-    /// Redemption lands on a calendar date and rolls forward once it passes.
     Cyclical,
 }
 
-/// Redemption horizon of an asset, and the rate ceiling makers may quote on it.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Schedule {
@@ -22,7 +19,6 @@ pub struct Schedule {
     pub max_bps_per_day: u32,
 }
 
-/// On-chain listing terms: the ask decays from `start_maker_amount` to `min_maker_amount`.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DutchOrder {
@@ -90,6 +86,8 @@ pub struct Config {
     pub max_fee_bps: u32,
     pub fallback_max_age: u64,
     pub max_deviation_bps: u32,
+    /// Seconds a keeper must wait between backstop pushes. Floors at one ledger.
+    pub min_push_interval: u64,
     pub max_shift_seconds: u32,
     pub decay_seconds: u32,
 }

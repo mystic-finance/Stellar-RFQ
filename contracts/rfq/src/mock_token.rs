@@ -1,7 +1,3 @@
-//! A SEP-41 token that credits the receiver something other than what was sent:
-//! `tax_bps` burns a slice in flight (a transfer-taxed RWA), `bonus_bps` credits
-//! more than it was sent (a rebase landing mid-transfer). Test-only.
-
 use soroban_sdk::{contract, contractimpl, contracttype, Address, Env};
 
 #[contracttype]

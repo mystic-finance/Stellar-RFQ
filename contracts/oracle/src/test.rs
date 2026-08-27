@@ -2,7 +2,6 @@ use super::*;
 use soroban_sdk::testutils::{Address as _, Ledger as _};
 use soroban_sdk::{contract, contractimpl, Env};
 
-/// Minimal SEP-40 feed: 14 decimals, prices keyed by asset.
 #[contract]
 pub struct MockFeed;
 
@@ -78,7 +77,6 @@ impl Fixture {
 fn direct_feed_normalises_to_1e18() {
     let f = setup();
     let now = f.env.ledger().timestamp();
-    // 1 base = 1.5 quote, same token decimals.
     f.feed
         .set(&Asset::Stellar(f.base.clone()), &(E14 * 3 / 2), &now);
 
@@ -110,7 +108,6 @@ fn differing_token_decimals_shift_the_scale() {
             invert: false,
         },
     );
-    // One raw base unit buys a tenth of a raw quote unit.
     assert_eq!(client.get_price(&f.base, &f.quote).price, ONE / 10);
 }
 
@@ -118,7 +115,8 @@ fn differing_token_decimals_shift_the_scale() {
 fn cross_rate_divides_two_legs_and_takes_the_older_stamp() {
     let f = setup();
     let now = f.env.ledger().timestamp();
-    f.feed.set(&Asset::Stellar(f.base.clone()), &(E14 * 4), &now);
+    f.feed
+        .set(&Asset::Stellar(f.base.clone()), &(E14 * 4), &now);
     f.feed
         .set(&Asset::Stellar(f.quote.clone()), &(E14 * 2), &(now - 100));
 
@@ -133,7 +131,8 @@ fn cross_rate_divides_two_legs_and_takes_the_older_stamp() {
 fn invert_flips_a_reversed_feed() {
     let f = setup();
     let now = f.env.ledger().timestamp();
-    f.feed.set(&Asset::Stellar(f.base.clone()), &(E14 * 4), &now);
+    f.feed
+        .set(&Asset::Stellar(f.base.clone()), &(E14 * 4), &now);
     assert_eq!(
         f.deploy(None, true).get_price(&f.base, &f.quote).price,
         ONE / 4

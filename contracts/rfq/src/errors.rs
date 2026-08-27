@@ -26,10 +26,8 @@ pub enum Error {
     PriceDeviation = 20,
     ScheduleShiftTooLarge = 21,
     InvalidConfig = 22,
-    /// The submitter is not the order's designated `sender`.
     WrongSender = 23,
-    /// The signer voided every order under this salt.
     SaltIsCancelled = 24,
-    /// A fill would take the request past the amount the taker signed for.
     RequestOverfilled = 25,
+    PriceUpdateTooSoon = 26,
 }

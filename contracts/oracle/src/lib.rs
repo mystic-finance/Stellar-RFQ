@@ -1,6 +1,6 @@
 #![no_std]
-//! SEP-40 price adapter. Reads a Reflector-style feed and republishes it in the
-//! 1e18 raw-unit convention the RFQ settlement contract expects. See README.md.
+//! SEP-40 price adapter: reads a Reflector-style feed and republishes it in the
+//! 1e18 raw-unit convention the settlement contract expects. See README.md.
 
 use soroban_sdk::{
     contract, contractclient, contracterror, contractimpl, contracttype, panic_with_error, Address,
@@ -43,21 +43,20 @@ pub enum Error {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Config {
-    /// SEP-40 feed to read.
     pub source: Address,
     pub base: Address,
     pub quote: Address,
-    /// Keys into the feed. With `cross` unset the feed already quotes in `quote`
-    /// and `quote_asset` is ignored; with it set the two legs are divided.
     pub base_asset: Asset,
     pub quote_asset: Asset,
     pub cross: bool,
     pub base_decimals: u32,
     pub quote_decimals: u32,
     pub max_age: u64,
-    /// Set when the feed reports `quote/base` instead of `base/quote`.
     pub invert: bool,
 }
+
+const THRESHOLD: u32 = 518_400;
+const EXTEND: u32 = 535_680;
 
 #[contracttype]
 #[derive(Clone)]
@@ -75,13 +74,17 @@ impl OctarineOracle {
         if env.storage().instance().has(&DataKey::Admin) {
             panic_with_error!(&env, Error::AlreadyInitialized);
         }
+        // Deploy and initialize are not necessarily one transaction.
+        admin.require_auth();
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::Cfg, &cfg);
+        Self::touch(&env);
     }
 
     pub fn set_config(env: Env, cfg: Config) {
         Self::admin(env.clone()).require_auth();
         env.storage().instance().set(&DataKey::Cfg, &cfg);
+        Self::touch(&env);
     }
 
     pub fn admin(env: Env) -> Address {
@@ -92,43 +95,57 @@ impl OctarineOracle {
         env.storage().instance().get(&DataKey::Cfg).unwrap()
     }
 
-    /// Price of `base` in `quote`, scaled so `quote_amount = base_amount * price / 1e18`
-    /// in raw token units. Traps when the pair is unknown or the feed is stale.
     pub fn get_price(env: Env, base: Address, quote: Address) -> PriceData {
+        Self::touch(&env);
         let cfg = Self::config(env.clone());
         if base != cfg.base || quote != cfg.quote {
             panic_with_error!(&env, Error::PairMismatch);
         }
         let source = Sep40Client::new(&env, &cfg.source);
         let decimals = source.decimals();
+        let (raw, timestamp) = Self::feed_rate(&env, &cfg, &source, decimals);
+        PriceData {
+            price: Self::scale_to_1e18(&env, raw, &cfg, decimals),
+            timestamp,
+        }
+    }
 
-        let head = Self::fresh(&env, cfg.max_age, source.lastprice(&cfg.base_asset));
+    fn feed_rate(env: &Env, cfg: &Config, source: &Sep40Client, decimals: u32) -> (i128, u64) {
+        let head = Self::fresh(env, cfg.max_age, source.lastprice(&cfg.base_asset));
         let mut raw = head.price;
         let mut timestamp = head.timestamp;
-
         if cfg.cross {
-            let leg = Self::fresh(&env, cfg.max_age, source.lastprice(&cfg.quote_asset));
-            raw = Self::mul_div(&env, raw, Self::pow10(&env, decimals), leg.price);
+            let leg = Self::fresh(env, cfg.max_age, source.lastprice(&cfg.quote_asset));
+            raw = Self::mul_div(env, raw, Self::pow10(env, decimals), leg.price);
             timestamp = timestamp.min(leg.timestamp);
         }
         if cfg.invert {
-            let unit = Self::pow10(&env, decimals);
-            raw = Self::mul_div(&env, unit, unit, raw);
+            let unit = Self::pow10(env, decimals);
+            raw = Self::mul_div(env, unit, unit, raw);
         }
         if raw <= 0 {
-            panic_with_error!(&env, Error::NoPrice);
+            panic_with_error!(env, Error::NoPrice);
         }
+        (raw, timestamp)
+    }
 
+    fn scale_to_1e18(env: &Env, raw: i128, cfg: &Config, decimals: u32) -> i128 {
         let exp = 18 + cfg.quote_decimals as i32 - cfg.base_decimals as i32 - decimals as i32;
         let price = if exp >= 0 {
-            Self::checked(&env, raw.checked_mul(Self::pow10(&env, exp as u32)))
+            Self::checked(env, raw.checked_mul(Self::pow10(env, exp as u32)))
         } else {
-            raw / Self::pow10(&env, (-exp) as u32)
+            raw / Self::pow10(env, (-exp) as u32)
         };
         if price <= 0 {
-            panic_with_error!(&env, Error::NoPrice);
+            panic_with_error!(env, Error::NoPrice);
         }
-        PriceData { price, timestamp }
+        price
+    }
+
+    /// This contract has no upgrade path and serves almost nothing but reads, so
+    /// reads refresh the TTL. Otherwise recovery means a restore or a redeploy.
+    fn touch(env: &Env) {
+        env.storage().instance().extend_ttl(THRESHOLD, EXTEND);
     }
 
     fn fresh(env: &Env, max_age: u64, data: Option<PriceData>) -> PriceData {
