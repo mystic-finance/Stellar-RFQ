@@ -47,9 +47,10 @@ stellar contract invoke --id "$RFQ_ID" --source rfq-maker "${NET[@]}" \
 ok "registered $MAKER_PUBKEY_HEX"
 
 log "Configuring the rate model"
-# Fees 0–10%, backstop prices live for 1h, 7-day Dutch decay.
+# Fees 0–10%, backstop prices live for 1h, keepers rate-limited to one push per
+# 5 min, 7-day Dutch decay.
 stellar contract invoke --id "$RFQ_ID" --source rfq-admin "${NET[@]}" \
-  -- set_config --cfg '{"min_fee_bps":0,"max_fee_bps":1000,"fallback_max_age":3600,"max_deviation_bps":1000,"max_shift_seconds":86400,"decay_seconds":604800}' >/dev/null
+  -- set_config --cfg '{"min_fee_bps":0,"max_fee_bps":1000,"fallback_max_age":3600,"max_deviation_bps":1000,"min_push_interval":300,"max_shift_seconds":86400,"decay_seconds":604800}' >/dev/null
 # ORWA redeems on a 30-day rolling horizon; makers may quote up to 10 bps/day.
 stellar contract invoke --id "$RFQ_ID" --source rfq-admin "${NET[@]}" \
   -- set_schedule --caller "$ADMIN_ADDR" --asset "$RWA_ID" \

@@ -1,7 +1,7 @@
 NETWORK ?= testnet
 export NETWORK
 
-.PHONY: all build test lint complexity wasm fmt clean setup deploy seed-demo e2e mint fund
+.PHONY: all build test lint complexity wasm fmt clean setup deploy seed-demo oracle fill-demo e2e mint fund
 
 all: build test lint
 
@@ -43,6 +43,14 @@ deploy:
 ## Testnet-only: deploy test tokens, mint, register signer.
 seed-demo:
 	./scripts/03-seed-demo.sh
+
+## Deploy a SEP-40 adapter for a pair and register it (defaults to XLM/USDC).
+oracle:
+	./scripts/04-oracle.sh
+
+## Testnet-only: sign and settle every fill path against the deployment.
+fill-demo:
+	./scripts/05-fill-demo.sh
 
 ## Run the testnet pipeline: setup -> build -> deploy -> seed-demo.
 e2e:
