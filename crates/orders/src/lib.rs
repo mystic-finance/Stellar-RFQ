@@ -28,6 +28,8 @@ pub struct Request {
     pub fee_recipient: Address,
     pub expiry: u64,
     pub salt: u64,
+    /// Ceiling on the maker's rate, in hundredths of a basis point per day:
+    /// 250 is 2.50 bps/day.
     pub taker_max_bps_per_day: u32,
     pub order_type: OrderType,
 }
@@ -45,7 +47,9 @@ pub struct RfqOrder {
     pub fee_recipient: Address,
     pub expiry: u64,
     pub salt: u64,
+    /// Ceiling on the maker's rate, in hundredths of a basis point per day.
     pub taker_max_bps_per_day: u32,
+    /// The bid, in hundredths of a basis point per day: 250 is 2.50 bps/day.
     pub maker_bps_per_day: u32,
     pub max_maker_amount: i128,
     pub maker: Address,

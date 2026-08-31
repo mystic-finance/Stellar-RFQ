@@ -124,7 +124,7 @@ fn setup() -> Fixture {
             rolling_seconds: (30 * DAY) as u32,
             next_redemption_at: 0,
             cycle_seconds: 0,
-            max_bps_per_day: 10,
+            max_bps_per_day: 1_000,
         },
     );
     settlement.set_config(&rfq::Config {
@@ -166,7 +166,7 @@ impl Fixture {
             fee_recipient: self.admin.clone(),
             expiry: self.env.ledger().timestamp() + 1_000,
             salt,
-            taker_max_bps_per_day: 10,
+            taker_max_bps_per_day: 1_000,
             maker_bps_per_day: bps_per_day,
             max_maker_amount: taker_amount,
             maker: self.maker.clone(),
@@ -250,7 +250,7 @@ impl Fixture {
 #[test]
 fn routes_a_signed_bid_through_the_settlement_contract() {
     let f = setup();
-    let route = vec![&f.env, f.signed(1_000_000, 10, 1)];
+    let route = vec![&f.env, f.signed(1_000_000, 1_000, 1)];
 
     let r = f.router.fill(&f.taker, &f.rwa, &f.usd, &route, &970_000);
     assert_eq!(r.taker_spent, 1_000_000);
@@ -304,7 +304,7 @@ fn a_blended_route_sums_both_bid_channels() {
 
     let route = vec![
         &f.env,
-        f.signed(400_000, 10, 1),
+        f.signed(400_000, 1_000, 1),
         f.agg_leg(SourceKind::Facility, &facility, 300_000, 297_000),
         f.agg_leg(SourceKind::Dex, &dex, 300_000, 294_000),
     ];
@@ -323,7 +323,7 @@ fn a_blended_route_sums_both_bid_channels() {
 fn reverts_whole_route_when_output_misses_the_minimum() {
     let f = setup();
     let before = (f.usd_of(&f.taker), f.rwa_of(&f.taker));
-    let route = vec![&f.env, f.signed(1_000_000, 10, 1)];
+    let route = vec![&f.env, f.signed(1_000_000, 1_000, 1)];
 
     let err = f
         .router
@@ -358,7 +358,7 @@ fn an_open_bid_is_routed_with_the_router_as_taker_of_record() {
         &(f.env.ledger().sequence() + 1_000_000),
     );
 
-    let route = vec![&f.env, f.signed_open(1_000_000, 10, 7)];
+    let route = vec![&f.env, f.signed_open(1_000_000, 1_000, 7)];
     let r = f.router.fill(&f.taker, &f.rwa, &f.usd, &route, &970_000);
 
     assert_eq!(r.amount_out, 970_000);
@@ -371,7 +371,7 @@ fn an_open_bid_is_routed_with_the_router_as_taker_of_record() {
 #[test]
 fn a_leg_whose_signature_contradicts_its_order_is_rejected() {
     let f = setup();
-    let open_with_sig = match (f.signed_open(1_000, 10, 8), f.signed(1_000, 10, 9)) {
+    let open_with_sig = match (f.signed_open(1_000, 1_000, 8), f.signed(1_000, 1_000, 9)) {
         (Leg::Rfq(open), Leg::Rfq(named)) => Leg::Rfq(RfqLeg {
             taker_signature: named.taker_signature,
             ..open
@@ -387,7 +387,7 @@ fn a_leg_whose_signature_contradicts_its_order_is_rejected() {
         Error::LegSignatureMismatch.into()
     );
 
-    let named_without_sig = match f.signed(1_000, 10, 10) {
+    let named_without_sig = match f.signed(1_000, 1_000, 10) {
         Leg::Rfq(l) => Leg::Rfq(RfqLeg {
             taker_signature: vec![&f.env],
             ..l
@@ -421,7 +421,7 @@ fn a_bid_quoted_to_someone_else_cannot_be_routed() {
         &(f.env.ledger().sequence() + 1_000_000),
     );
 
-    let route = vec![&f.env, f.signed(1_000_000, 10, 1)];
+    let route = vec![&f.env, f.signed(1_000_000, 1_000, 1)];
     let err = f
         .router
         .try_fill(&mallory, &f.rwa, &f.usd, &route, &1)
@@ -436,7 +436,7 @@ fn a_bid_quoted_to_someone_else_cannot_be_routed() {
 #[test]
 fn a_signed_leg_settles_between_the_counterparties_only() {
     let f = setup();
-    let route = vec![&f.env, f.signed(1_000_000, 10, 1)];
+    let route = vec![&f.env, f.signed(1_000_000, 1_000, 1)];
     f.router.fill(&f.taker, &f.rwa, &f.usd, &route, &970_000);
 
     assert_eq!(f.rwa_of(&f.maker), 1_000_000);
@@ -448,7 +448,7 @@ fn a_signed_leg_settles_between_the_counterparties_only() {
 #[test]
 fn the_router_takes_no_fee_of_its_own() {
     let f = setup();
-    let route = vec![&f.env, f.signed(1_000_000, 10, 1)];
+    let route = vec![&f.env, f.signed(1_000_000, 1_000, 1)];
 
     let r = f.router.fill(&f.taker, &f.rwa, &f.usd, &route, &970_000);
     assert_eq!(r.amount_out, 970_000);
@@ -508,7 +508,7 @@ fn unregistered_sources_and_mismatched_legs_are_rejected() {
             &f.taker,
             &f.usd,
             &f.rwa,
-            &vec![&f.env, f.signed(1_000, 10, 1)],
+            &vec![&f.env, f.signed(1_000, 1_000, 1)],
             &1,
         )
         .err()
@@ -536,7 +536,7 @@ fn empty_routes_and_pause_are_enforced() {
                 &f.taker,
                 &f.rwa,
                 &f.usd,
-                &vec![&f.env, f.signed(1_000, 10, 1)],
+                &vec![&f.env, f.signed(1_000, 1_000, 1)],
                 &1
             )
             .err()

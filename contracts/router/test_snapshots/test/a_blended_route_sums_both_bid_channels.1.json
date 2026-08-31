@@ -311,7 +311,7 @@
                         "symbol": "max_bps_per_day"
                       },
                       "val": {
-                        "u32": 10
+                        "u32": 1000
                       }
                     },
                     {
@@ -607,7 +607,7 @@
                                       "symbol": "signature"
                                     },
                                     "val": {
-                                      "bytes": "8e31f3cdc778ab7f4824ff0226c909c1b2f618f33b16b0111361483db776016bb93135b59ec7c7f1787ce8fb7b427dde459865a0f936d636da72ba24bbc2bf06"
+                                      "bytes": "4b86f351698a4d5726edee45ab2e0342a37f69f7db39e171cc6c27cc99af7228642732a631ee747c98f7d8c4487cfce1fb5c19e6201a24bbb04446c4e48f9b0a"
                                     }
                                   },
                                   {
@@ -669,7 +669,7 @@
                                           "symbol": "maker_bps_per_day"
                                         },
                                         "val": {
-                                          "u32": 10
+                                          "u32": 1000
                                         }
                                       },
                                       {
@@ -742,7 +742,7 @@
                                           "symbol": "taker_max_bps_per_day"
                                         },
                                         "val": {
-                                          "u32": 10
+                                          "u32": 1000
                                         }
                                       },
                                       {
@@ -782,7 +782,7 @@
                                           "symbol": "signature"
                                         },
                                         "val": {
-                                          "bytes": "6244f5f72f9597b5243b25c22f91871320852c19ffb2c604c6060cb919fc885ad88072e33dcfaa4b2bed97f69094b0088df4adf77fbcfe913fa0dacc112b990f"
+                                          "bytes": "0b95c0bf2e2ff0ad97e5ba1fc552831dae27d7cc793dbeafc27494c972e8f0afd5aa4aa563fab60514a566421139f6b24431adcca667b00d7e665fe3be21d00c"
                                         }
                                       },
                                       {
@@ -1697,7 +1697,7 @@
                   "symbol": "Filled"
                 },
                 {
-                  "bytes": "e716c8327d2d81f139e88e90ec5b60f96ae9be5bb98637b69c5849bb38ed93d4"
+                  "bytes": "b1540e94fa9db909d8463b135e96aa2c3b6ac8616ce52bb5ef0e62fbd839d7c0"
                 }
               ]
             },
@@ -1717,7 +1717,7 @@
                       "symbol": "Filled"
                     },
                     {
-                      "bytes": "e716c8327d2d81f139e88e90ec5b60f96ae9be5bb98637b69c5849bb38ed93d4"
+                      "bytes": "b1540e94fa9db909d8463b135e96aa2c3b6ac8616ce52bb5ef0e62fbd839d7c0"
                     }
                   ]
                 },
@@ -1745,7 +1745,7 @@
                   "symbol": "RequestFilled"
                 },
                 {
-                  "bytes": "119113f66e26b2506f87fd0006d4c689058ca207c48cc2c8bb78dd0981b8b221"
+                  "bytes": "e9c046a7eb15e9b8f0302b8d336222377185c5eea299778c4334f1ef88693b12"
                 }
               ]
             },
@@ -1765,7 +1765,7 @@
                       "symbol": "RequestFilled"
                     },
                     {
-                      "bytes": "119113f66e26b2506f87fd0006d4c689058ca207c48cc2c8bb78dd0981b8b221"
+                      "bytes": "e9c046a7eb15e9b8f0302b8d336222377185c5eea299778c4334f1ef88693b12"
                     }
                   ]
                 },
@@ -1833,7 +1833,7 @@
                         "symbol": "max_bps_per_day"
                       },
                       "val": {
-                        "u32": 10
+                        "u32": 1000
                       }
                     },
                     {

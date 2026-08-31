@@ -16,6 +16,8 @@ pub struct Schedule {
     pub rolling_seconds: u32,
     pub next_redemption_at: u64,
     pub cycle_seconds: u32,
+    /// Rate ceiling for this asset, in hundredths of a basis point per day:
+    /// 1000 is 10.00 bps/day.
     pub max_bps_per_day: u32,
 }
 

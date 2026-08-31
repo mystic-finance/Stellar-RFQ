@@ -58,8 +58,8 @@ log "Registering schedules"
 stellar contract invoke --id "$RFQ_ID" --source rfq-admin "${NET[@]}" \
   -- set_schedule --caller "$ADMIN_ADDR" --asset "$MRWA_ID" \
      --schedule "$(jq -nc --argjson s $((7 * DAY)) \
-       '{mode:"Rolling", rolling_seconds:$s, next_redemption_at:0, cycle_seconds:0, max_bps_per_day:10}')" >/dev/null
-ok "mRWA = Rolling 7d @ max 10 bps/day"
+       '{mode:"Rolling", rolling_seconds:$s, next_redemption_at:0, cycle_seconds:0, max_bps_per_day:1000}')" >/dev/null
+ok "mRWA = Rolling 7d @ max 10.00 bps/day"
 
 # Cyclical redemption lands on a date and rolls forward once it passes, so the
 # horizon counts down across the cycle instead of staying put.
@@ -67,8 +67,8 @@ ANCHOR=$(( $(date -u +%s) + 3 * DAY ))
 stellar contract invoke --id "$RFQ_ID" --source rfq-admin "${NET[@]}" \
   -- set_schedule --caller "$ADMIN_ADDR" --asset "$MXLM_ID" \
      --schedule "$(jq -nc --argjson c $((3 * DAY)) --argjson a "$ANCHOR" \
-       '{mode:"Cyclical", rolling_seconds:0, next_redemption_at:$a, cycle_seconds:$c, max_bps_per_day:10}')" >/dev/null
-ok "mXLM = Cyclical 3d @ max 10 bps/day (first redemption $ANCHOR)"
+       '{mode:"Cyclical", rolling_seconds:0, next_redemption_at:$a, cycle_seconds:$c, max_bps_per_day:1000}')" >/dev/null
+ok "mXLM = Cyclical 3d @ max 10.00 bps/day (first redemption $ANCHOR)"
 
 # mRWA has no feed, so it runs on the keeper backstop until one is registered.
 log "Seeding the mRWA backstop price"

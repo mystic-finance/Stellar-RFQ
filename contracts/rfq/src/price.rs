@@ -6,7 +6,11 @@ use crate::types::{PriceData, PushedPrice, Schedule, ScheduleMode};
 
 pub const ONE: i128 = 1_000_000_000_000_000_000;
 pub const BPS: i128 = 10_000;
-pub const DENOM: i128 = BPS * 86_400;
+/// Rates carry two decimal places, so every `*_bps_per_day` field counts
+/// hundredths of a basis point: 250 is 2.50 bps/day, 25 is 0.25. Fee and
+/// deviation fields are plain basis points and do not use this scale.
+pub const RATE_SCALE: i128 = 100;
+pub const DENOM: i128 = BPS * RATE_SCALE * 86_400;
 pub const MAX_SECONDS: u64 = 3650 * 86_400;
 
 fn mul_div_round(env: &Env, a: i128, b: i128, d: i128, ceil: bool) -> i128 {

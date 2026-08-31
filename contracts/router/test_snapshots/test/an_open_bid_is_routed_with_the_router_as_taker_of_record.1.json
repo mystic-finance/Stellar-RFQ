@@ -311,7 +311,7 @@
                         "symbol": "max_bps_per_day"
                       },
                       "val": {
-                        "u32": 10
+                        "u32": 1000
                       }
                     },
                     {
@@ -527,7 +527,7 @@
                                       "symbol": "signature"
                                     },
                                     "val": {
-                                      "bytes": "2397abd8be0bec315fba2e348f29cf589d79f4251d3cf9f3760a103ec40da922971a60c544bfcfc92091c9d417483582b772db5afa84fcb0b1d17948c07f7c0a"
+                                      "bytes": "ec51cbc4d3f2a10c34eb14ad185b3131817eacc9f137d876f21aabda3ccb34d71a6b3672bf09753d9cfa9a8686195314213745d1d9abd77818a14175fc983d0a"
                                     }
                                   },
                                   {
@@ -589,7 +589,7 @@
                                           "symbol": "maker_bps_per_day"
                                         },
                                         "val": {
-                                          "u32": 10
+                                          "u32": 1000
                                         }
                                       },
                                       {
@@ -660,7 +660,7 @@
                                           "symbol": "taker_max_bps_per_day"
                                         },
                                         "val": {
-                                          "u32": 10
+                                          "u32": 1000
                                         }
                                       },
                                       {
@@ -1396,7 +1396,7 @@
                   "symbol": "Filled"
                 },
                 {
-                  "bytes": "93319997f1d933d90c26f90540b9c180c8b8add168c0d68ba41a811387bf9a9f"
+                  "bytes": "227ef7838e63cc48065416f3cfdec90353b44a330b530a9b1c92b17297fde0c5"
                 }
               ]
             },
@@ -1416,7 +1416,7 @@
                       "symbol": "Filled"
                     },
                     {
-                      "bytes": "93319997f1d933d90c26f90540b9c180c8b8add168c0d68ba41a811387bf9a9f"
+                      "bytes": "227ef7838e63cc48065416f3cfdec90353b44a330b530a9b1c92b17297fde0c5"
                     }
                   ]
                 },
@@ -1484,7 +1484,7 @@
                         "symbol": "max_bps_per_day"
                       },
                       "val": {
-                        "u32": 10
+                        "u32": 1000
                       }
                     },
                     {

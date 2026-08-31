@@ -55,10 +55,11 @@ log "Configuring the rate model"
 # from your keeper's actual cadence before this config goes anywhere real.
 stellar contract invoke --id "$RFQ_ID" --source rfq-admin "${NET[@]}" \
   -- set_config --cfg '{"min_fee_bps":0,"max_fee_bps":1000,"fallback_max_age":259200,"max_deviation_bps":1000,"min_push_interval":300,"max_shift_seconds":86400,"decay_seconds":604800}' >/dev/null
-# ORWA redeems on a 30-day rolling horizon; makers may quote up to 10 bps/day.
+# ORWA redeems on a 30-day rolling horizon; makers may quote up to 10.00 bps/day.
+# Rates carry two decimal places, so 1000 is 10.00.
 stellar contract invoke --id "$RFQ_ID" --source rfq-admin "${NET[@]}" \
   -- set_schedule --caller "$ADMIN_ADDR" --asset "$RWA_ID" \
-     --schedule '{"mode":"Rolling","rolling_seconds":2592000,"next_redemption_at":0,"cycle_seconds":0,"max_bps_per_day":10}' >/dev/null
+     --schedule '{"mode":"Rolling","rolling_seconds":2592000,"next_redemption_at":0,"cycle_seconds":0,"max_bps_per_day":1000}' >/dev/null
 # Backstop price: 1 ORWA = 1 OUSD until a real feed is registered.
 stellar contract invoke --id "$RFQ_ID" --source rfq-admin "${NET[@]}" \
   -- push_price --caller "$ADMIN_ADDR" --asset "$RWA_ID" --new_price "$ONE" >/dev/null

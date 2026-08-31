@@ -257,7 +257,7 @@
                         "symbol": "max_bps_per_day"
                       },
                       "val": {
-                        "u32": 10
+                        "u32": 1000
                       }
                     },
                     {
@@ -450,7 +450,7 @@
                         "symbol": "maker_bps_per_day"
                       },
                       "val": {
-                        "u32": 10
+                        "u32": 1000
                       }
                     },
                     {
@@ -519,7 +519,7 @@
                         "symbol": "taker_max_bps_per_day"
                       },
                       "val": {
-                        "u32": 10
+                        "u32": 1000
                       }
                     },
                     {
@@ -539,7 +539,7 @@
                         "symbol": "signature"
                       },
                       "val": {
-                        "bytes": "48a9f5d6cd220cf0c7f1b8081d790f526e1f380245b1a16dfba99ab34ca032cc796e43a03858faf50be3d2cf2aff4dfd1e7fca78c38959b68ec93ca160beeb06"
+                        "bytes": "6704b09233c5ef72c46ac4b09d342d736fd09b34b7ff450b75dbc25ac1598c17337cd318f4f2e3e2f41a421da3555c2a982adb4cfd18a5477fdefc85c3f02c06"
                       }
                     },
                     {
@@ -1150,7 +1150,7 @@
                   "symbol": "Filled"
                 },
                 {
-                  "bytes": "be90f1d2a311cd6e8f90dbd3807e4162fca3aa3a7734759b40d0d1747a430ee2"
+                  "bytes": "63ded832094cf3a55df4694be27b39fbe18f422473a4f8374c3b83942ac31f44"
                 }
               ]
             },
@@ -1170,7 +1170,7 @@
                       "symbol": "Filled"
                     },
                     {
-                      "bytes": "be90f1d2a311cd6e8f90dbd3807e4162fca3aa3a7734759b40d0d1747a430ee2"
+                      "bytes": "63ded832094cf3a55df4694be27b39fbe18f422473a4f8374c3b83942ac31f44"
                     }
                   ]
                 },
@@ -1238,7 +1238,7 @@
                         "symbol": "max_bps_per_day"
                       },
                       "val": {
-                        "u32": 10
+                        "u32": 1000
                       }
                     },
                     {

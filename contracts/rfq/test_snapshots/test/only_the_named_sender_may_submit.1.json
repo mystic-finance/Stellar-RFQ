@@ -257,7 +257,7 @@
                         "symbol": "max_bps_per_day"
                       },
                       "val": {
-                        "u32": 10
+                        "u32": 1000
                       }
                     },
                     {
@@ -452,7 +452,7 @@
                         "symbol": "maker_bps_per_day"
                       },
                       "val": {
-                        "u32": 10
+                        "u32": 1000
                       }
                     },
                     {
@@ -525,7 +525,7 @@
                         "symbol": "taker_max_bps_per_day"
                       },
                       "val": {
-                        "u32": 10
+                        "u32": 1000
                       }
                     },
                     {
@@ -545,7 +545,7 @@
                         "symbol": "signature"
                       },
                       "val": {
-                        "bytes": "57a56a70b89402191bf8843704c1b01a5765a257dd0b711fc5df924201313a17684e4ab8f53afafa7f37dcc68cf8ff1e921ca4a5e89c46222b18f16303af3001"
+                        "bytes": "1e8d11fa384bfc512feb5be36668a6684ab7e634d256c7046a841705db4649250990b27427d829123223f569a6b1dde5cac3ebc680d8461df19a3c83b691810f"
                       }
                     },
                     {
@@ -565,7 +565,7 @@
                         "symbol": "signature"
                       },
                       "val": {
-                        "bytes": "17949d41190dd8ded4b97b9845cae401aae3485f8d9a58ba78cc9d9799377d4b508168f3c256ac082cc26473131ed8691d4a704310f861c9e22b573a11832103"
+                        "bytes": "430ec027ccd82cd6599e6b16bc2f9e40f620cf0f63dfb2769a71e1ed8632ed3bd513017ed3bbeb6646cb86954a0735544703023a7a2865858b68cf93bfb8c906"
                       }
                     },
                     {
@@ -1140,7 +1140,7 @@
                   "symbol": "Filled"
                 },
                 {
-                  "bytes": "21d52045116316e331371cb649de3f7a1f4f62e0b98a526f28ea7f051cbc9a38"
+                  "bytes": "47839d8ac56428e01bcc0a553c12f0646bba027c697a4763450726d301af1834"
                 }
               ]
             },
@@ -1160,7 +1160,7 @@
                       "symbol": "Filled"
                     },
                     {
-                      "bytes": "21d52045116316e331371cb649de3f7a1f4f62e0b98a526f28ea7f051cbc9a38"
+                      "bytes": "47839d8ac56428e01bcc0a553c12f0646bba027c697a4763450726d301af1834"
                     }
                   ]
                 },
@@ -1188,7 +1188,7 @@
                   "symbol": "RequestFilled"
                 },
                 {
-                  "bytes": "d15b8d62c63d097cbb0818d660d36355f152100b902396333b2b5c734b7a8046"
+                  "bytes": "87b1d58ccb6b1b02e64a653e030223d31f7070a5718874310c0edc2c77c89ae6"
                 }
               ]
             },
@@ -1208,7 +1208,7 @@
                       "symbol": "RequestFilled"
                     },
                     {
-                      "bytes": "d15b8d62c63d097cbb0818d660d36355f152100b902396333b2b5c734b7a8046"
+                      "bytes": "87b1d58ccb6b1b02e64a653e030223d31f7070a5718874310c0edc2c77c89ae6"
                     }
                   ]
                 },
@@ -1276,7 +1276,7 @@
                         "symbol": "max_bps_per_day"
                       },
                       "val": {
-                        "u32": 10
+                        "u32": 1000
                       }
                     },
                     {
@@ -2408,7 +2408,7 @@
                 "symbol": "rfq_fill"
               },
               {
-                "bytes": "21d52045116316e331371cb649de3f7a1f4f62e0b98a526f28ea7f051cbc9a38"
+                "bytes": "47839d8ac56428e01bcc0a553c12f0646bba027c697a4763450726d301af1834"
               },
               {
                 "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
@@ -2441,7 +2441,7 @@
                   "u32": 2592000
                 },
                 {
-                  "u32": 10
+                  "u32": 1000
                 }
               ]
             }
