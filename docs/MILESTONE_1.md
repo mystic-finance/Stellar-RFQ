@@ -1,80 +1,80 @@
-# Milestone 1 — Octarine on Stellar
+# SCF Build — Tranche Completion Form
 
-**Status: complete and running on Stellar testnet.**
+## Are you ready to submit your next tranche of deliverables?
 
-Octarine lets someone holding a real-world asset (a tokenised treasury bill, say)
-sell it quickly, by having market makers compete to buy it. Milestone 1 built
-that whole path on Stellar: the contracts that hold and move the money, the
-service that runs the auction, and the interface people use.
+Yes.
 
----
+## Project Stage
 
-## What we built
+Pre-Launch #1 — MVP.
 
-**Three smart contracts**, which are the parts that actually move funds:
+## Telegram Username
 
-| | What it does |
-|---|---|
-| **Settlement** | Holds the rules of a trade and executes it. Both sides approve off-chain; the contract checks the signatures and swaps the assets in one step. |
-| **Router** | Takes the offer the seller picked and settles it in a single transaction. Built to handle several liquidity sources later; today it handles one. |
-| **Price adapter** | Reads a live price feed and converts it into the format the settlement contract expects. |
+*(to fill in)*
 
-## The idea that makes it different
+## Tranche Deliverables
 
-Real-world assets can't be redeemed instantly — a treasury bill might take 7 or
-30 days. A buyer bridging that wait deserves paying for it, and the longer the
-wait, the more it costs.
+**1. RFQ Settlement Smart Contracts**: Holds the terms of a trade and executes
+it. Both sides sign off-chain; the contract verifies the signatures and swaps the
+assets in one step, taking the protocol fee in the same step. Supports RFQ orders
+(the buyer bids a rate per day, the amount is derived at settlement), limit
+orders, Dutch listings, partial fills, delegated signing keys, batch
+cancellation, SEP-53 signatures and SAC allowances.
 
-So **buyers don't bid a price. They bid a rate, a small percentage per day.**
-The actual amount is worked out at the moment the trade settles, using how many
-days are left and the live market price.
+Done on testnet: 20+ Order fills.
 
-The practical benefit: a buyer signs their offer **once** and it stays correct as
-time passes. With a fixed price, every tick of the clock would make the offer
-stale and it would have to be re-signed.
+**2. RFQ Router**: Settles the chosen trade in a single transaction, across one
+or more liquidity sources. The seller sets a minimum output; if the trade would
+deliver less, the whole transaction reverts and nothing moves. The router reads
+and ranks prices from registered sources on-chain, but the route itself is chosen
+off-chain by the seller and executed exactly as chosen — it never substitutes a
+different one.
 
-The seller is protected two ways: they set the most they'll pay per day, and a
-floor on what they must receive. Both are locked in before any buyer bids, so an
-offer can't quietly move the terms.
+Done on testnet: 5+ routed settlements.
 
-## Proven working, end to end
+**3. Auction Backend, API & Frontend MVP**: The backend publishes the request,
+collects and ranks bids, verifies every signature, and builds the transactions a
+wallet signs. It holds no keys and submits nothing on a user's behalf. Market
+makers can bid two ways: send a rate and get back the exact order to sign, or
+build and sign the order themselves. The React frontend uses Stellar Wallets Kit,
+so sellers create swaps and accept bids, and market makers bid, all signing from
+their own wallet.
 
-Live on testnet with real signatures and real tokens moving not simulated at **https://stellar-setup.octarine-ui.pages.dev**:
+- Backend Docs at https://curator-api.mysticfinance.xyz/docs/#/Octarine
+- UI Live at https://stellar-setup.octarine-ui.pages.dev
 
-- A seller creates a request and signs their terms
-- A buyer bids a rate and signs the offer
-- The trade settles through the router in one transaction
-- Fees are taken, and cancelled offers are correctly refused
+## Deliverable Verification — Video
 
-Backed by **55 contract tests** and **344 service tests**, all passing.
+## Additional Deliverable Verification
 
-## Connected up
+**Contracts (Stellar Testnet)**: open the Events tab on each for the fills above.
 
-- **Backend** — runs the auction, verifies signatures, prepares the transactions
-  for people's wallets. Buyers can either let us price their rate and hand them
-  something to sign, or build and sign it themselves — whichever suits them.
-- **Interface** — sellers create requests, buyers bid, sellers accept, all with a
-  Stellar wallet (Freighter and others).
-- **Test assets** — three tokens on testnet (`mUSDC`, `mRWA`, `mXLM`), funded to
-  every test wallet. One is on a live market price feed; the others use a price
-  we set.
+- Settlement: https://stellar.expert/explorer/testnet/contract/CDB75DJB7KK6V2CJPGT44CJRZYPP7BPXFHZTOPIYSGO2KGQC576UJYQM
+- Router: https://stellar.expert/explorer/testnet/contract/CAVJVJ7QVIVJKR2DVBNBAPFGJLFL4PGW5QFFHVLWBGVWMDLDBPBT75P6
+- Price adapter: https://stellar.expert/explorer/testnet/contract/CAGR33LOLRUMNYHGKE2P3Z55I67CMMCVTF2WNQITG526XAVPZGMMVNCC
 
----
+**Test assets** — mUSDC `CBHHOLNFBQSZ7TJ4TE3UFF43HJ4XSBLU6AXDIC5K73Z4TZUQSUCNA7PC`,
+mRWA `CCVU3HJIL4EZ2C3RT5ICQ7LAZ3IIF3TRKYBW72HD7JINH2IUD2PDRDD7`,
+mXLM `CBOOCLAKDO4J3EDXLVZJ3EKSCIKGQ5NFYOEYNXPQTHSECTJWB26KA7M3`.
 
-## Where it stands
+mXLM is priced from a live Reflector feed, so the system is demonstrably working
+against a real market price.
 
-Everything above is **on testnet**, which is the point of this milestone: prove
-the mechanism works before real money touches it.
+**To test it**: open the app, connect a Stellar testnet wallet (xBull or any
+Stellar Wallets Kit wallet), send us the address and we will mint you test
+tokens, then create a swap and accept a bid. No login or credentials; everything
+is signed in your own wallet.
 
-## Reference
+**Repositories**:
+contracts [`stellar-rfq`](https://github.com/mystic-finance/Stellar-RFQ), 
+backend [`mystic-backend`](https://github.com/mystic-finance/backend/tree/alt-staging)
+, and frontend [`Octarine-UI`](https://github.com/mystic-finance/Octarine-UI/tree/stellar-setup)
 
-Stellar testnet. Current values live in `deployments/testnet.json`.
+The backend and frontend repositories are private repositories, please share your github username so we'll give you access.
 
-| | |
-|---|---|
-| Settlement | `CDB75DJB7KK6V2CJPGT44CJRZYPP7BPXFHZTOPIYSGO2KGQC576UJYQM` |
-| Router | `CAVJVJ7QVIVJKR2DVBNBAPFGJLFL4PGW5QFFHVLWBGVWMDLDBPBT75P6` |
-| Price adapter | `CAGR33LOLRUMNYHGKE2P3Z55I67CMMCVTF2WNQITG526XAVPZGMMVNCC` |
+## Support Needed
 
-More detail: [`TECHNICAL_ARCHITECTURE.md`](./TECHNICAL_ARCHITECTURE.md) and the
-[project README](../README.md).
+**Price feeds for real-world assets.** Reflector covers crypto well and we use it
+for mXLM, but most tokenised real-world assets are on no public feed, so
+valuations have to come from the issuer. We would welcome a conversation with
+anyone in the ecosystem working on this.
