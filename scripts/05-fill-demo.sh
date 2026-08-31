@@ -74,9 +74,9 @@ inv "$USD_ID" rfq-maker approve --from "$MAKER_ADDR" --spender "$RFQ_ID" \
   --amount "$BIG" --expiration_ledger "$EXPIRY_LEDGER" >/dev/null
 ok "approved"
 
-# The demo backstop expires after `fallback_max_age` (1h in the seed config), and
-# without a live price the rate model refuses to quote. A keeper would be pushing
-# this continuously; here we push once so the run has a price to work from.
+# The demo backstop expires after `fallback_max_age`, and without a live price
+# the rate model refuses to quote. A keeper would be pushing this continuously;
+# here we push once so the run has a price to work from.
 log "Refreshing the ORWA backstop price"
 inv "$RFQ_ID" rfq-admin push_price --caller "$ADMIN_ADDR" --asset "$RWA_ID" \
   --new_price 1000000000000000000 >/dev/null
