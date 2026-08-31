@@ -47,10 +47,14 @@ stellar contract invoke --id "$RFQ_ID" --source rfq-maker "${NET[@]}" \
 ok "registered $MAKER_PUBKEY_HEX"
 
 log "Configuring the rate model"
-# Fees 0–10%, backstop prices live for 1h, keepers rate-limited to one push per
-# 5 min, 7-day Dutch decay.
+# Fees 0-10%, keepers rate-limited to one push per 5 min, 7-day Dutch decay.
+#
+# Backstop prices live for 72h. That is a test-network figure: nothing here runs
+# a keeper, so a shorter bound just means every pushed price expires and the
+# whole pair stops quoting with NoPrice a few minutes into a session. Set it
+# from your keeper's actual cadence before this config goes anywhere real.
 stellar contract invoke --id "$RFQ_ID" --source rfq-admin "${NET[@]}" \
-  -- set_config --cfg '{"min_fee_bps":0,"max_fee_bps":1000,"fallback_max_age":3600,"max_deviation_bps":1000,"min_push_interval":300,"max_shift_seconds":86400,"decay_seconds":604800}' >/dev/null
+  -- set_config --cfg '{"min_fee_bps":0,"max_fee_bps":1000,"fallback_max_age":259200,"max_deviation_bps":1000,"min_push_interval":300,"max_shift_seconds":86400,"decay_seconds":604800}' >/dev/null
 # ORWA redeems on a 30-day rolling horizon; makers may quote up to 10 bps/day.
 stellar contract invoke --id "$RFQ_ID" --source rfq-admin "${NET[@]}" \
   -- set_schedule --caller "$ADMIN_ADDR" --asset "$RWA_ID" \
