@@ -39,7 +39,7 @@ offer can't quietly move the terms.
 
 ## Proven working, end to end
 
-Live on testnet with real signatures and real tokens moving — not simulated:
+Live on testnet with real signatures and real tokens moving not simulated at **https://stellar-setup.octarine-ui.pages.dev**:
 
 - A seller creates a request and signs their terms
 - A buyer bids a rate and signs the offer
