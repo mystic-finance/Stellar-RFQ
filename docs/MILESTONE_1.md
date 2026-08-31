@@ -17,8 +17,7 @@ Pre-Launch #1 — MVP.
 **1. RFQ Settlement Smart Contracts**: Holds the terms of a trade and executes
 it. Both sides sign off-chain; the contract verifies the signatures and swaps the
 assets in one step, taking the protocol fee in the same step. Supports RFQ orders
-(the buyer bids a rate per day, the amount is derived at settlement), limit
-orders, Dutch listings, partial fills, delegated signing keys, batch
+(the buyer bids a rate per day, the amount is derived at settlement), Dutch listings, partial fills, delegated signing keys, batch
 cancellation, SEP-53 signatures and SAC allowances.
 
 Done on testnet: 20+ Order fills.
@@ -27,7 +26,7 @@ Done on testnet: 20+ Order fills.
 or more liquidity sources. The seller sets a minimum output; if the trade would
 deliver less, the whole transaction reverts and nothing moves. The router reads
 and ranks prices from registered sources on-chain, but the route itself is chosen
-off-chain by the seller and executed exactly as chosen — it never substitutes a
+off-chain by the seller and executed exactly as chosen, it never substitutes a
 different one.
 
 Done on testnet: 5+ routed settlements.
