@@ -67,7 +67,7 @@ pub(crate) fn setup() -> Fixture {
             rolling_seconds: (30 * DAY) as u32,
             next_redemption_at: 0,
             cycle_seconds: 0,
-            max_bps_per_day: 10,
+            max_bps_per_day: 1_000,
         },
     );
     client.set_config(&Config {
@@ -108,8 +108,8 @@ impl Fixture {
             fee_recipient: self.admin.clone(),
             expiry: self.env.ledger().timestamp() + 1_000,
             salt: 1,
-            taker_max_bps_per_day: 10,
-            maker_bps_per_day: 10,
+            taker_max_bps_per_day: 1_000,
+            maker_bps_per_day: 1_000,
             max_maker_amount: 1_000_000,
             maker: self.maker.clone(),
         }
@@ -196,7 +196,7 @@ fn horizon_nets_off_the_maker_leg_schedule() {
             rolling_seconds: (10 * DAY) as u32,
             next_redemption_at: 0,
             cycle_seconds: 0,
-            max_bps_per_day: 10,
+            max_bps_per_day: 1_000,
         },
     );
     let q = f.client.quote_rfq_order(&f.rfq(), &1_000_000);
@@ -216,7 +216,7 @@ fn fixed_schedule_prices_to_the_second() {
             rolling_seconds: 0,
             next_redemption_at: now + 12 * 3_600,
             cycle_seconds: (30 * DAY) as u32,
-            max_bps_per_day: 10,
+            max_bps_per_day: 1_000,
         },
     );
     assert_eq!(f.client.seconds_to_redemption(&f.rwa), 12 * 3_600);
@@ -232,7 +232,7 @@ fn fixed_schedule_prices_to_the_second() {
 fn rfq_rejects_rate_above_the_schedule_or_taker_cap() {
     let f = setup();
     let mut order = f.rfq();
-    order.maker_bps_per_day = 11;
+    order.maker_bps_per_day = 1_001;
     let err = f
         .client
         .try_quote_rfq_order(&order, &1_000_000)
@@ -242,7 +242,7 @@ fn rfq_rejects_rate_above_the_schedule_or_taker_cap() {
     assert_eq!(err, Error::BpsPerDayTooHigh.into());
 
     let mut order = f.rfq();
-    order.taker_max_bps_per_day = 5;
+    order.taker_max_bps_per_day = 500;
     let err = f
         .client
         .try_quote_rfq_order(&order, &1_000_000)
@@ -652,7 +652,7 @@ fn skewed(tax_bps: i128, bonus_bps: i128) -> (Fixture, SkewTokenClient<'static>)
             rolling_seconds: (30 * DAY) as u32,
             next_redemption_at: 0,
             cycle_seconds: 0,
-            max_bps_per_day: 10,
+            max_bps_per_day: 1_000,
         },
     );
     f.client.push_price(&f.admin, &token, &ONE);

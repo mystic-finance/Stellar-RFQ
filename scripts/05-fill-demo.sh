@@ -95,7 +95,7 @@ RFQ_ORDER="$(jq -nc \
   --argjson e "$(expiry)" --argjson salt "$SALT" \
   '{maker_token:$mt, taker_token:$tt, taker_amount:"10000000", min_received_amount:"9000000",
     fee_bps:0, taker:null, sender:null, fee_recipient:$fr, expiry:$e, salt:$salt,
-    taker_max_bps_per_day:10, maker_bps_per_day:10, max_maker_amount:"10000000", maker:$mk}')"
+    taker_max_bps_per_day:1000, maker_bps_per_day:1000, max_maker_amount:"10000000", maker:$mk}')"
 
 ORDER_HASH="$(view "$RFQ_ID" hash_rfq_order --order "$RFQ_ORDER" | unquote)"
 MAKER_SIG="$(node "$SIGN" "$MAKER_SECRET" "$ORDER_HASH")"
@@ -135,7 +135,7 @@ ROUTED_ORDER="$(jq -nc \
   --arg tk "$TAKER_ADDR" --arg sd "$ROUTER_ID" --argjson e "$(expiry)" --argjson salt "$SALT" \
   '{maker_token:$mt, taker_token:$tt, taker_amount:"10000000", min_received_amount:"9000000",
     fee_bps:0, taker:$tk, sender:$sd, fee_recipient:$fr, expiry:$e, salt:$salt,
-    taker_max_bps_per_day:10, maker_bps_per_day:10, max_maker_amount:"10000000", maker:$mk}')"
+    taker_max_bps_per_day:1000, maker_bps_per_day:1000, max_maker_amount:"10000000", maker:$mk}')"
 
 REQUEST="$(jq -nc --argjson o "$ROUTED_ORDER" \
   '{maker_token:$o.maker_token, taker_token:$o.taker_token, taker_amount:$o.taker_amount,

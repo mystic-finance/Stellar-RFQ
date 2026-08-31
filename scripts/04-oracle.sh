@@ -18,7 +18,8 @@
 #   BASE_DECIMALS / QUOTE_DECIMALS   token decimals. Default 7 (Stellar classic).
 #   SCHEDULE_SECONDS  rolling redemption horizon to register for BASE, so the RFQ
 #                     rate model can quote it. 0 => skip. Default 86400.
-#   MAX_BPS_PER_DAY   rate ceiling for that schedule. Default 10.
+#   MAX_BPS_PER_DAY   rate ceiling for that schedule, in hundredths of a basis
+#                     point per day. Default 1000 (= 10.00 bps/day).
 source "$(dirname "$0")/lib.sh"
 require_tools
 
@@ -49,7 +50,7 @@ MAX_AGE="${MAX_AGE:-900}"
 BASE_DECIMALS="${BASE_DECIMALS:-7}"
 QUOTE_DECIMALS="${QUOTE_DECIMALS:-7}"
 SCHEDULE_SECONDS="${SCHEDULE_SECONDS:-86400}"
-MAX_BPS_PER_DAY="${MAX_BPS_PER_DAY:-10}"
+MAX_BPS_PER_DAY="${MAX_BPS_PER_DAY:-1000}"
 
 NET=(--rpc-url "$RPC_URL" --network-passphrase "$NETWORK_PASSPHRASE")
 
@@ -101,7 +102,7 @@ if [ "$SCHEDULE_SECONDS" != "0" ]; then
     -- set_schedule --caller "$ADMIN_ADDR" --asset "$BASE" \
        --schedule "$(jq -nc --argjson s "$SCHEDULE_SECONDS" --argjson m "$MAX_BPS_PER_DAY" \
          '{mode:"Rolling", rolling_seconds:$s, next_redemption_at:0, cycle_seconds:0, max_bps_per_day:$m}')" >/dev/null
-  ok "schedule for $BASE_SYMBOL = ${SCHEDULE_SECONDS}s rolling @ max ${MAX_BPS_PER_DAY} bps/day"
+  ok "schedule for $BASE_SYMBOL = ${SCHEDULE_SECONDS}s rolling @ max $(awk "BEGIN{printf \"%.2f\", $MAX_BPS_PER_DAY/100}") bps/day"
 fi
 
 log "Settlement price_of($BASE_SYMBOL, $QUOTE_SYMBOL)"

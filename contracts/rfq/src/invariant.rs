@@ -5,7 +5,9 @@ use soroban_sdk::token::{StellarAssetClient, TokenClient};
 use soroban_sdk::Address;
 
 const BPS_I: i128 = 10_000;
-const DENOM_I: i128 = BPS_I * 86_400;
+// Rates carry two decimal places; see price::RATE_SCALE.
+const RATE_SCALE_I: i128 = 100;
+const DENOM_I: i128 = BPS_I * RATE_SCALE_I * 86_400;
 
 struct Rng(u64);
 
@@ -90,7 +92,7 @@ fn inv_fills_conserve_supply_and_leave_no_dust_in_the_contract() {
         order.max_maker_amount = order.taker_amount;
         order.fee_bps = rng.range(0, 1_000) as u32;
         order.fee_recipient = fee_recipient.clone();
-        order.maker_bps_per_day = rng.range(0, 10) as u32;
+        order.maker_bps_per_day = rng.range(0, 1_000) as u32;
 
         let amount = rng.range(1, order.taker_amount as u64) as i128;
         let r = f.fill(&order, amount);
@@ -111,13 +113,13 @@ fn inv_discount_is_monotone_in_rate_and_horizon() {
 
     for _ in 0..40 {
         let days = rng.range(1, 300);
-        let bps = rng.range(0, 9_000 / (days + 1) - 1) as u32;
-        f.set_horizon((days * DAY) as u32, 10_000);
+        let bps = rng.range(0, 900_000 / (days + 1) - 1) as u32;
+        f.set_horizon((days * DAY) as u32, 1_000_000);
 
         let mut order = f.rfq();
         order.taker_amount = amount;
         order.maker_bps_per_day = bps;
-        order.taker_max_bps_per_day = 10_000;
+        order.taker_max_bps_per_day = 1_000_000;
         let base = f.client.quote_rfq_order(&order, &amount).maker_amount;
 
         assert!(base <= amount && base >= 0);
@@ -128,7 +130,7 @@ fn inv_discount_is_monotone_in_rate_and_horizon() {
         assert!(f.client.quote_rfq_order(&order, &amount).maker_amount <= base);
 
         order.maker_bps_per_day = bps;
-        f.set_horizon(((days + 1) * DAY) as u32, 10_000);
+        f.set_horizon(((days + 1) * DAY) as u32, 1_000_000);
         assert!(f.client.quote_rfq_order(&order, &amount).maker_amount <= base);
     }
 }
@@ -146,7 +148,7 @@ fn inv_splitting_a_fill_never_pays_more_than_one_shot() {
         whole.salt = salt * 2;
         whole.taker_amount = taker_amount;
         whole.max_maker_amount = taker_amount;
-        whole.maker_bps_per_day = rng.range(1, 10) as u32;
+        whole.maker_bps_per_day = rng.range(1, 1_000) as u32;
         let one_shot = f.fill(&whole, taker_amount).maker_filled;
 
         let mut split = whole.clone();
@@ -178,7 +180,7 @@ fn inv_signed_bounds_are_strict_and_headroom_always_fills() {
         let mut order = f.rfq();
         order.salt = salt * 2;
         order.taker_amount = taker_amount;
-        order.maker_bps_per_day = rng.range(0, 10) as u32;
+        order.maker_bps_per_day = rng.range(0, 1_000) as u32;
         order.fee_bps = rng.range(0, 1_000) as u32;
         let full = f.client.quote_rfq_order(&order, &taker_amount);
 
@@ -366,7 +368,7 @@ fn inv_schedule_horizon_stays_inside_one_cycle() {
                 rolling_seconds: 0,
                 next_redemption_at: start + rng.range(1, cycle),
                 cycle_seconds: cycle as u32,
-                max_bps_per_day: 10,
+                max_bps_per_day: 1_000,
             },
         );
         for _ in 0..8 {
@@ -489,7 +491,7 @@ fn inv_a_fill_never_settles_for_zero_output() {
         order.salt = salt;
         order.taker_amount = rng.range(10_000, 1_000_000) as i128;
         order.max_maker_amount = order.taker_amount;
-        order.maker_bps_per_day = rng.range(1, 10) as u32;
+        order.maker_bps_per_day = rng.range(1, 1_000) as u32;
         let hash = f.client.hash_rfq_order(&order);
 
         assert_eq!(f.client.quote_rfq_order(&order, &1).maker_amount, 0);
