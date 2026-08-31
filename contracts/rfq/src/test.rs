@@ -1,345 +1,620 @@
-#![cfg(test)]
-
 use super::*;
 use ed25519_dalek::{Signer as _, SigningKey};
 use soroban_sdk::testutils::{Address as _, Ledger as _};
 use soroban_sdk::token::{StellarAssetClient, TokenClient};
 use soroban_sdk::{Address, BytesN, Env};
 
-const HUGE: i128 = 1_000_000_000_000;
+pub(crate) const HUGE: i128 = 1_000_000_000_000_000;
+pub(crate) const DAY: u64 = 86_400;
+pub(crate) const ONE: i128 = 1_000_000_000_000_000_000;
 
-struct Fixture {
-    env: Env,
-    client: RfqContractClient<'static>,
-    contract_id: Address,
-    maker: Address,
-    taker: Address,
-    maker_token: Address,
-    taker_token: Address,
-    maker_key: SigningKey,
-    maker_pubkey: BytesN<32>,
+pub(crate) struct Fixture {
+    pub env: Env,
+    pub client: RfqContractClient<'static>,
+    pub admin: Address,
+    pub maker: Address,
+    pub taker: Address,
+    pub rwa: Address,
+    pub usd: Address,
+    pub key: SigningKey,
+    pub pubkey: BytesN<32>,
+    pub taker_key: SigningKey,
 }
 
-fn create_token(env: &Env, admin: &Address) -> Address {
-    env.register_stellar_asset_contract_v2(admin.clone())
-        .address()
-}
-
-fn setup() -> Fixture {
+pub(crate) fn setup() -> Fixture {
     let env = Env::default();
     env.mock_all_auths();
-
-    let contract_id = env.register(RfqContract, ());
-    let client = RfqContractClient::new(&env, &contract_id);
+    env.ledger().set_timestamp(1_000_000);
 
     let admin = Address::generate(&env);
-    client.initialize(&admin);
-
     let maker = Address::generate(&env);
     let taker = Address::generate(&env);
     let token_admin = Address::generate(&env);
 
-    let maker_token = create_token(&env, &token_admin);
-    let taker_token = create_token(&env, &token_admin);
+    let rwa = env
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
+    let usd = env
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
 
-    StellarAssetClient::new(&env, &maker_token).mint(&maker, &HUGE);
-    StellarAssetClient::new(&env, &taker_token).mint(&taker, &HUGE);
+    let contract_id = env.register(RfqContract, ());
+    let client = RfqContractClient::new(&env, &contract_id);
+    client.initialize(&admin, &usd);
 
-    // Pre-approve the settlement contract as spender, like makers/takers
-    // approving the 0x Exchange Proxy.
+    StellarAssetClient::new(&env, &rwa).mint(&taker, &HUGE);
+    StellarAssetClient::new(&env, &usd).mint(&maker, &HUGE);
     let exp = env.ledger().sequence() + 1_000_000;
-    TokenClient::new(&env, &maker_token).approve(&maker, &contract_id, &HUGE, &exp);
-    TokenClient::new(&env, &taker_token).approve(&taker, &contract_id, &HUGE, &exp);
+    TokenClient::new(&env, &rwa).approve(&taker, &contract_id, &HUGE, &exp);
+    TokenClient::new(&env, &usd).approve(&maker, &contract_id, &HUGE, &exp);
 
-    // The maker's off-chain signing key, registered on-chain.
-    let maker_key = SigningKey::from_bytes(&[7u8; 32]);
-    let maker_pubkey = BytesN::from_array(&env, &maker_key.verifying_key().to_bytes());
-    client.register_order_signer(&maker, &maker_pubkey, &true);
+    let key = SigningKey::from_bytes(&[7u8; 32]);
+    let pubkey = BytesN::from_array(&env, &key.verifying_key().to_bytes());
+    client.register_order_signer(&maker, &pubkey, &true);
+
+    let taker_key = SigningKey::from_bytes(&[11u8; 32]);
+    client.register_order_signer(
+        &taker,
+        &BytesN::from_array(&env, &taker_key.verifying_key().to_bytes()),
+        &true,
+    );
+
+    client.set_schedule(
+        &admin,
+        &rwa,
+        &Schedule {
+            mode: ScheduleMode::Rolling,
+            rolling_seconds: (30 * DAY) as u32,
+            next_redemption_at: 0,
+            cycle_seconds: 0,
+            max_bps_per_day: 10,
+        },
+    );
+    client.set_config(&Config {
+        min_fee_bps: 0,
+        max_fee_bps: 1_000,
+        fallback_max_age: 3_600,
+        max_deviation_bps: 5_000,
+        min_push_interval: 300,
+        max_shift_seconds: 0,
+        decay_seconds: (7 * DAY) as u32,
+    });
+    client.push_price(&admin, &rwa, &ONE);
 
     Fixture {
         env,
         client,
-        contract_id,
+        admin,
         maker,
         taker,
-        maker_token,
-        taker_token,
-        maker_key,
-        maker_pubkey,
+        rwa,
+        usd,
+        key,
+        pubkey,
+        taker_key,
     }
-}
-
-fn sign(env: &Env, key: &SigningKey, hash: &BytesN<32>) -> Signature {
-    // Sign the SEP-53 digest (exactly what a wallet `signMessage` / a bot signs).
-    let digest = crate::hash::sep53_digest(env, hash);
-    let sig = key.sign(&digest.to_array());
-    Signature {
-        signer: BytesN::from_array(env, &key.verifying_key().to_bytes()),
-        signature: BytesN::from_array(env, &sig.to_bytes()),
-    }
-}
-
-/// Stellar `G...` account address for an ed25519 key (so the contract can
-/// recover the maker's pubkey from its address).
-fn account_address(env: &Env, key: &SigningKey) -> Address {
-    let strkey = stellar_strkey::ed25519::PublicKey(key.verifying_key().to_bytes()).to_string();
-    Address::from_string(&soroban_sdk::String::from_str(env, &strkey))
 }
 
 impl Fixture {
-    fn rfq_order(&self) -> RfqOrder {
+    pub fn rfq(&self) -> RfqOrder {
         RfqOrder {
-            maker_token: self.maker_token.clone(),
-            taker_token: self.taker_token.clone(),
-            maker_amount: 1_000,
-            taker_amount: 2_000,
-            maker: self.maker.clone(),
-            taker: None,
-            tx_origin: self.taker.clone(),
-            pool: BytesN::from_array(&self.env, &[0u8; 32]),
-            expiry: self.env.ledger().timestamp() + 1_000,
-            salt: 1,
-        }
-    }
-
-    fn limit_order(&self) -> LimitOrder {
-        LimitOrder {
-            maker_token: self.maker_token.clone(),
-            taker_token: self.taker_token.clone(),
-            maker_amount: 1_000,
-            taker_amount: 2_000,
-            token_fee_amount: 0,
-            maker: self.maker.clone(),
+            maker_token: self.usd.clone(),
+            taker_token: self.rwa.clone(),
+            taker_amount: 1_000_000,
+            min_received_amount: 1,
+            fee_bps: 0,
             taker: None,
             sender: None,
-            fee_recipient: self.maker.clone(),
-            pool: BytesN::from_array(&self.env, &[0u8; 32]),
+            fee_recipient: self.admin.clone(),
             expiry: self.env.ledger().timestamp() + 1_000,
             salt: 1,
+            taker_max_bps_per_day: 10,
+            maker_bps_per_day: 10,
+            max_maker_amount: 1_000_000,
+            maker: self.maker.clone(),
         }
     }
 
-    fn maker_token_balance(&self, who: &Address) -> i128 {
-        TokenClient::new(&self.env, &self.maker_token).balance(who)
+    pub fn fixed(&self) -> FixedOrder {
+        FixedOrder {
+            maker_token: self.usd.clone(),
+            taker_token: self.rwa.clone(),
+            taker_amount: 1_000_000,
+            min_received_amount: 1,
+            fee_bps: 0,
+            taker: None,
+            sender: None,
+            fee_recipient: self.admin.clone(),
+            expiry: self.env.ledger().timestamp() + 1_000,
+            salt: 1,
+            maker_amount: 900_000,
+            maker: self.maker.clone(),
+        }
     }
-    fn taker_token_balance(&self, who: &Address) -> i128 {
-        TokenClient::new(&self.env, &self.taker_token).balance(who)
+
+    pub fn dutch(&self) -> DutchOrder {
+        DutchOrder {
+            maker_token: self.usd.clone(),
+            taker_token: self.rwa.clone(),
+            taker_amount: 1_000_000,
+            start_maker_amount: 1_000_000,
+            min_maker_amount: 800_000,
+            fee_bps: 0,
+            fee_recipient: self.admin.clone(),
+            expiry: 0,
+        }
+    }
+
+    pub fn sign(&self, hash: &BytesN<32>) -> Signature {
+        self.sign_as(&self.key, hash)
+    }
+
+    pub fn sign_as(&self, key: &SigningKey, hash: &BytesN<32>) -> Signature {
+        let digest = crate::hash::sep53(&self.env, hash);
+        Signature {
+            signer: BytesN::from_array(&self.env, &key.verifying_key().to_bytes()),
+            signature: BytesN::from_array(&self.env, &key.sign(&digest.to_array()).to_bytes()),
+        }
+    }
+
+    pub fn usd_of(&self, who: &Address) -> i128 {
+        TokenClient::new(&self.env, &self.usd).balance(who)
+    }
+    pub fn rwa_of(&self, who: &Address) -> i128 {
+        TokenClient::new(&self.env, &self.rwa).balance(who)
     }
 }
 
 #[test]
-fn rfq_partial_then_full_fill() {
+fn rfq_discount_is_bps_per_day_over_the_horizon() {
     let f = setup();
-    let order = f.rfq_order();
-    let hash = f.client.get_rfq_order_hash(&order);
-    let sig = sign(&f.env, &f.maker_key, &hash);
+    let order = f.rfq();
+    let q = f.client.quote_rfq_order(&order, &1_000_000);
+    assert_eq!(q.horizon_seconds, (30 * DAY) as u32);
+    assert_eq!(q.maker_amount, 970_000);
 
-    // Partial fill: 1000 of 2000 taker tokens -> 500 of 1000 maker tokens.
-    let r = f.client.fill_rfq_order(&order, &sig, &f.taker, &1_000);
-    assert_eq!(r.taker_token_filled_amount, 1_000);
-    assert_eq!(r.maker_token_filled_amount, 500);
-    assert_eq!(f.maker_token_balance(&f.taker), 500);
-    assert_eq!(f.taker_token_balance(&f.maker), 1_000);
+    let r = f.client.fill_rfq_order(
+        &order,
+        &f.sign(&f.client.hash_rfq_order(&order)),
+        &None,
+        &f.taker,
+        &1_000_000,
+    );
+    assert_eq!(r.maker_filled, 970_000);
+    assert_eq!(f.usd_of(&f.taker), 970_000);
+    assert_eq!(f.rwa_of(&f.maker), 1_000_000);
+}
 
-    let info = f.client.get_rfq_order_info(&order);
-    assert_eq!(info.status, OrderStatus::Fillable);
-    assert_eq!(info.taker_token_filled_amount, 1_000);
+#[test]
+fn horizon_nets_off_the_maker_leg_schedule() {
+    let f = setup();
+    f.client.set_schedule(
+        &f.admin,
+        &f.usd,
+        &Schedule {
+            mode: ScheduleMode::Rolling,
+            rolling_seconds: (10 * DAY) as u32,
+            next_redemption_at: 0,
+            cycle_seconds: 0,
+            max_bps_per_day: 10,
+        },
+    );
+    let q = f.client.quote_rfq_order(&f.rfq(), &1_000_000);
+    assert_eq!(q.horizon_seconds, (20 * DAY) as u32);
+    assert_eq!(q.maker_amount, 980_000);
+}
 
-    // Over-fill the rest: clamps to remaining 1000 taker tokens.
-    let r2 = f.client.fill_rfq_order(&order, &sig, &f.taker, &5_000);
-    assert_eq!(r2.taker_token_filled_amount, 1_000);
-    assert_eq!(r2.maker_token_filled_amount, 500);
-    assert_eq!(f.maker_token_balance(&f.taker), 1_000);
-    assert_eq!(f.taker_token_balance(&f.maker), 2_000);
+#[test]
+fn fixed_schedule_prices_to_the_second() {
+    let f = setup();
+    let now = f.env.ledger().timestamp();
+    f.client.set_schedule(
+        &f.admin,
+        &f.rwa,
+        &Schedule {
+            mode: ScheduleMode::Cyclical,
+            rolling_seconds: 0,
+            next_redemption_at: now + 12 * 3_600,
+            cycle_seconds: (30 * DAY) as u32,
+            max_bps_per_day: 10,
+        },
+    );
+    assert_eq!(f.client.seconds_to_redemption(&f.rwa), 12 * 3_600);
 
+    f.env.ledger().set_timestamp(now + 13 * 3_600);
     assert_eq!(
-        f.client.get_rfq_order_info(&order).status,
-        OrderStatus::Filled
+        f.client.seconds_to_redemption(&f.rwa),
+        (30 * DAY - 3_600) as u32
     );
 }
 
 #[test]
-fn rfq_rejects_unregistered_signer() {
+fn rfq_rejects_rate_above_the_schedule_or_taker_cap() {
     let f = setup();
-    let order = f.rfq_order();
-    let hash = f.client.get_rfq_order_hash(&order);
-    // Sign with a valid key that is NOT registered to the maker.
-    let rogue = SigningKey::from_bytes(&[9u8; 32]);
-    let sig = sign(&f.env, &rogue, &hash);
+    let mut order = f.rfq();
+    order.maker_bps_per_day = 11;
+    let err = f
+        .client
+        .try_quote_rfq_order(&order, &1_000_000)
+        .err()
+        .unwrap()
+        .unwrap();
+    assert_eq!(err, Error::BpsPerDayTooHigh.into());
+
+    let mut order = f.rfq();
+    order.taker_max_bps_per_day = 5;
+    let err = f
+        .client
+        .try_quote_rfq_order(&order, &1_000_000)
+        .err()
+        .unwrap()
+        .unwrap();
+    assert_eq!(err, Error::BpsPerDayTooHigh.into());
+}
+
+#[test]
+fn rfq_partial_fills_accumulate_and_cannot_overfill() {
+    let f = setup();
+    let order = f.rfq();
+    let sig = f.sign(&f.client.hash_rfq_order(&order));
+
+    f.client
+        .fill_rfq_order(&order, &sig, &None, &f.taker, &400_000);
+    assert_eq!(
+        f.client.filled_amount(&f.client.hash_rfq_order(&order)),
+        400_000
+    );
+    f.client
+        .fill_rfq_order(&order, &sig, &None, &f.taker, &600_000);
+    assert_eq!(f.usd_of(&f.taker), 970_000);
 
     let err = f
         .client
-        .try_fill_rfq_order(&order, &sig, &f.taker, &1_000)
+        .try_fill_rfq_order(&order, &sig, &None, &f.taker, &1)
+        .err()
+        .unwrap()
+        .unwrap();
+    assert_eq!(err, Error::OrderNotFillable.into());
+}
+
+#[test]
+fn rfq_enforces_maker_cap_and_taker_floor() {
+    let f = setup();
+    let mut order = f.rfq();
+    order.max_maker_amount = 960_000;
+    let err = f
+        .client
+        .try_fill_rfq_order(
+            &order,
+            &f.sign(&f.client.hash_rfq_order(&order)),
+            &None,
+            &f.taker,
+            &1_000_000,
+        )
+        .err()
+        .unwrap()
+        .unwrap();
+    assert_eq!(err, Error::MakerAmountTooHigh.into());
+
+    let mut order = f.rfq();
+    order.min_received_amount = 980_000;
+    let err = f
+        .client
+        .try_fill_rfq_order(
+            &order,
+            &f.sign(&f.client.hash_rfq_order(&order)),
+            &None,
+            &f.taker,
+            &1_000_000,
+        )
+        .err()
+        .unwrap()
+        .unwrap();
+    assert_eq!(err, Error::BelowMinReceived.into());
+}
+
+#[test]
+fn fee_is_skimmed_from_the_maker_output() {
+    let f = setup();
+    let recipient = Address::generate(&f.env);
+    let mut order = f.rfq();
+    order.fee_bps = 100;
+    order.fee_recipient = recipient.clone();
+
+    let r = f.client.fill_rfq_order(
+        &order,
+        &f.sign(&f.client.hash_rfq_order(&order)),
+        &None,
+        &f.taker,
+        &1_000_000,
+    );
+    assert_eq!(r.maker_filled, 970_000);
+    assert_eq!(r.fee, 9_700);
+    assert_eq!(f.usd_of(&recipient), 9_700);
+    assert_eq!(f.usd_of(&f.taker), 960_300);
+}
+
+#[test]
+fn fixed_order_ignores_the_rate_model() {
+    let f = setup();
+    let order = f.fixed();
+    let r = f.client.fill_fixed_order(
+        &order,
+        &f.sign(&f.client.hash_fixed_order(&order)),
+        &None,
+        &f.taker,
+        &500_000,
+    );
+    assert_eq!(r.maker_filled, 450_000);
+    assert_eq!(f.usd_of(&f.taker), 450_000);
+}
+
+#[test]
+fn dutch_ask_decays_and_fills_against_escrow() {
+    let f = setup();
+    let buyer = Address::generate(&f.env);
+    StellarAssetClient::new(&f.env, &f.usd).mint(&buyer, &HUGE);
+    TokenClient::new(&f.env, &f.usd).approve(
+        &buyer,
+        &f.client.address,
+        &HUGE,
+        &(f.env.ledger().sequence() + 1_000_000),
+    );
+
+    let id = f.client.create_dutch_order(&f.taker, &f.dutch());
+    assert_eq!(f.rwa_of(&f.client.address), 1_000_000);
+    assert_eq!(f.client.current_ask(&id), 1_000_000);
+
+    f.env
+        .ledger()
+        .set_timestamp(f.env.ledger().timestamp() + 3 * DAY + DAY / 2);
+    assert_eq!(f.client.current_ask(&id), 900_000);
+
+    let r = f.client.fill_dutch_order(&id, &buyer, &900_000);
+    assert_eq!(r.maker_filled, 900_000);
+    assert_eq!(f.rwa_of(&buyer), 1_000_000);
+    assert_eq!(f.usd_of(&f.taker), 900_000);
+    assert_eq!(f.rwa_of(&f.client.address), 0);
+
+    let err = f
+        .client
+        .try_fill_dutch_order(&id, &buyer, &900_000)
+        .err()
+        .unwrap()
+        .unwrap();
+    assert_eq!(err, Error::ListingNotActive.into());
+}
+
+#[test]
+fn dutch_ask_floors_after_the_decay_and_cancel_returns_escrow() {
+    let f = setup();
+    let id = f.client.create_dutch_order(&f.taker, &f.dutch());
+    f.env
+        .ledger()
+        .set_timestamp(f.env.ledger().timestamp() + 30 * DAY);
+    assert_eq!(f.client.current_ask(&id), 800_000);
+
+    f.client.cancel_dutch_order(&id);
+    assert_eq!(f.rwa_of(&f.taker), HUGE);
+    assert_eq!(f.rwa_of(&f.client.address), 0);
+}
+
+#[test]
+fn cancelling_a_salt_voids_both_sides_book_under_it() {
+    let f = setup();
+    let order = f.rfq();
+    let sig = f.sign(&f.client.hash_rfq_order(&order));
+
+    f.client.cancel_salt(&f.maker, &f.maker, &order.salt);
+    assert!(f.client.is_salt_cancelled(&f.maker, &order.salt));
+    let err = f
+        .client
+        .try_fill_rfq_order(&order, &sig, &None, &f.taker, &1)
+        .err()
+        .unwrap()
+        .unwrap();
+    assert_eq!(err, Error::SaltIsCancelled.into());
+
+    let mut other = f.rfq();
+    other.salt = 2;
+    let sig = f.sign(&f.client.hash_rfq_order(&other));
+    assert_eq!(
+        f.client
+            .fill_rfq_order(&other, &sig, &None, &f.taker, &1_000)
+            .taker_filled,
+        1_000
+    );
+
+    let stranger = Address::generate(&f.env);
+    assert!(f
+        .client
+        .try_cancel_salt(&stranger, &f.maker, &3u64)
+        .is_err());
+}
+
+#[test]
+fn unregistered_signer_and_expiry_are_rejected() {
+    let f = setup();
+    let order = f.rfq();
+    let rogue = SigningKey::from_bytes(&[9u8; 32]);
+    let hash = f.client.hash_rfq_order(&order);
+    let digest = crate::hash::sep53(&f.env, &hash);
+    let sig = Signature {
+        signer: BytesN::from_array(&f.env, &rogue.verifying_key().to_bytes()),
+        signature: BytesN::from_array(&f.env, &rogue.sign(&digest.to_array()).to_bytes()),
+    };
+    let err = f
+        .client
+        .try_fill_rfq_order(&order, &sig, &None, &f.taker, &1_000)
         .err()
         .unwrap()
         .unwrap();
     assert_eq!(err, Error::SignerNotAuthorized.into());
-}
 
-#[test]
-fn rfq_rejects_wrong_origin() {
-    let f = setup();
-    let mut order = f.rfq_order();
-    // Restrict submission to a different origin.
-    order.tx_origin = Address::generate(&f.env);
-    let hash = f.client.get_rfq_order_hash(&order);
-    let sig = sign(&f.env, &f.maker_key, &hash);
+    assert!(f.client.is_order_signer(&f.maker, &f.pubkey));
 
-    let err = f
-        .client
-        .try_fill_rfq_order(&order, &sig, &f.taker, &1_000)
-        .err()
-        .unwrap()
-        .unwrap();
-    assert_eq!(err, Error::OrderNotFillableByOrigin.into());
-
-    // Whitelisting the taker as an allowed origin makes it fillable.
-    f.client
-        .register_allowed_rfq_origin(&order.tx_origin, &f.taker, &true);
-    let r = f.client.fill_rfq_order(&order, &sig, &f.taker, &1_000);
-    assert_eq!(r.taker_token_filled_amount, 1_000);
-}
-
-#[test]
-fn rfq_expired() {
-    let f = setup();
-    let order = f.rfq_order();
-    let hash = f.client.get_rfq_order_hash(&order);
-    let sig = sign(&f.env, &f.maker_key, &hash);
-
+    let good = f.sign(&hash);
     f.env.ledger().set_timestamp(order.expiry + 1);
+    let err = f
+        .client
+        .try_fill_rfq_order(&order, &good, &None, &f.taker, &1_000)
+        .err()
+        .unwrap()
+        .unwrap();
+    assert_eq!(err, Error::OrderNotFillable.into());
+}
 
-    assert_eq!(
-        f.client.get_rfq_order_info(&order).status,
-        OrderStatus::Expired
+#[test]
+fn pause_blocks_fills() {
+    let f = setup();
+    f.client.set_paused(&true);
+    let order = f.rfq();
+    let err = f
+        .client
+        .try_fill_rfq_order(
+            &order,
+            &f.sign(&f.client.hash_rfq_order(&order)),
+            &None,
+            &f.taker,
+            &1_000,
+        )
+        .err()
+        .unwrap()
+        .unwrap();
+    assert_eq!(err, Error::Paused.into());
+}
+
+#[test]
+fn pushed_price_needs_a_live_epoch_and_bounded_deviation() {
+    let f = setup();
+    assert_eq!(f.client.price_of(&f.rwa, &f.usd), ONE);
+
+    let err = f
+        .client
+        .try_push_price(&f.admin, &f.rwa, &(ONE * 3))
+        .err()
+        .unwrap()
+        .unwrap();
+    assert_eq!(err, Error::PriceDeviation.into());
+
+    f.client.set_reference(&Address::generate(&f.env));
+    let err = f
+        .client
+        .try_price_of(&f.rwa, &f.usd)
+        .err()
+        .unwrap()
+        .unwrap();
+    assert_eq!(err, Error::NoPrice.into());
+}
+
+#[test]
+fn keeper_schedule_shift_is_bounded() {
+    let f = setup();
+    let keeper = Address::generate(&f.env);
+    f.client.set_keeper(&keeper, &true);
+    f.client.set_config(&Config {
+        min_fee_bps: 0,
+        max_fee_bps: 1_000,
+        fallback_max_age: 3_600,
+        max_deviation_bps: 5_000,
+        min_push_interval: 300,
+        max_shift_seconds: DAY as u32,
+        decay_seconds: (7 * DAY) as u32,
+    });
+
+    let mut schedule = f.client.get_schedule(&f.rwa).unwrap();
+    schedule.rolling_seconds = (25 * DAY) as u32;
+    let err = f
+        .client
+        .try_set_schedule(&keeper, &f.rwa, &schedule)
+        .err()
+        .unwrap()
+        .unwrap();
+    assert_eq!(err, Error::ScheduleShiftTooLarge.into());
+
+    f.client.set_schedule(&f.admin, &f.rwa, &schedule);
+    assert_eq!(f.client.seconds_to_redemption(&f.rwa), (25 * DAY) as u32);
+}
+
+#[soroban_sdk::contract]
+pub struct MockFeed;
+
+#[soroban_sdk::contractimpl]
+impl MockFeed {
+    pub fn set(env: Env, asset: oracle::Asset, price: i128, timestamp: u64) {
+        env.storage().persistent().set(&asset, &(price, timestamp));
+    }
+    pub fn decimals(_env: Env) -> u32 {
+        14
+    }
+    pub fn lastprice(env: Env, asset: oracle::Asset) -> Option<oracle::PriceData> {
+        env.storage()
+            .persistent()
+            .get::<oracle::Asset, (i128, u64)>(&asset)
+            .map(|(price, timestamp)| oracle::PriceData { price, timestamp })
+    }
+}
+
+#[test]
+fn registered_oracle_prices_the_fill_and_staleness_falls_back() {
+    let f = setup();
+    let now = f.env.ledger().timestamp();
+
+    let feed = f.env.register(MockFeed, ());
+    MockFeedClient::new(&f.env, &feed).set(
+        &oracle::Asset::Stellar(f.rwa.clone()),
+        &(2 * 100_000_000_000_000),
+        &now,
     );
-    let err = f
-        .client
-        .try_fill_rfq_order(&order, &sig, &f.taker, &1_000)
-        .err()
-        .unwrap()
-        .unwrap();
-    assert_eq!(err, Error::OrderNotFillable.into());
-}
-
-#[test]
-fn rfq_cancel() {
-    let f = setup();
-    let order = f.rfq_order();
-    let hash = f.client.get_rfq_order_hash(&order);
-    let sig = sign(&f.env, &f.maker_key, &hash);
-
-    f.client.cancel_rfq_order(&order);
-    assert_eq!(
-        f.client.get_rfq_order_info(&order).status,
-        OrderStatus::Cancelled
+    let adapter = f.env.register(oracle::OctarineOracle, ());
+    oracle::OctarineOracleClient::new(&f.env, &adapter).initialize(
+        &f.admin,
+        &oracle::Config {
+            source: feed.clone(),
+            base: f.rwa.clone(),
+            quote: f.usd.clone(),
+            base_asset: oracle::Asset::Stellar(f.rwa.clone()),
+            quote_asset: oracle::Asset::Stellar(f.rwa.clone()),
+            cross: false,
+            base_decimals: 7,
+            quote_decimals: 7,
+            max_age: 3_600,
+            invert: false,
+        },
     );
-    let err = f
-        .client
-        .try_fill_rfq_order(&order, &sig, &f.taker, &1_000)
-        .err()
-        .unwrap()
-        .unwrap();
-    assert_eq!(err, Error::OrderNotFillable.into());
-}
+    f.client.set_oracle(
+        &f.rwa,
+        &f.usd,
+        &Some(OracleCfg {
+            oracle: adapter,
+            max_age: 600,
+        }),
+    );
 
-#[test]
-fn cancel_pair_by_salt() {
-    let f = setup();
-    let order = f.rfq_order(); // salt = 1
-    let hash = f.client.get_rfq_order_hash(&order);
-    let sig = sign(&f.env, &f.maker_key, &hash);
+    assert_eq!(f.client.price_of(&f.rwa, &f.usd), ONE * 2);
+    let mut order = f.rfq();
+    order.max_maker_amount = 2_000_000;
+    assert_eq!(
+        f.client.quote_rfq_order(&order, &1_000_000).maker_amount,
+        1_940_000
+    );
 
-    // Invalidate everything with salt < 2 for this RFQ pair.
-    f.client.cancel_pair_rfq_orders(&f.maker, &f.maker_token, &f.taker_token, &2u64);
-    let err = f
-        .client
-        .try_fill_rfq_order(&order, &sig, &f.taker, &1_000)
-        .err()
-        .unwrap()
-        .unwrap();
-    assert_eq!(err, Error::OrderNotFillable.into());
-}
+    f.env.ledger().set_timestamp(now + 1_000);
+    assert_eq!(f.client.price_of(&f.rwa, &f.usd), ONE);
 
-#[test]
-fn fill_or_kill_reverts_on_partial() {
-    let f = setup();
-    let order = f.rfq_order();
-    let hash = f.client.get_rfq_order_hash(&order);
-    let sig = sign(&f.env, &f.maker_key, &hash);
-
-    // Only 2000 taker tokens are available but we demand 3000 exactly.
-    let err = f
-        .client
-        .try_fill_or_kill_rfq_order(&order, &sig, &f.taker, &3_000)
-        .err()
-        .unwrap()
-        .unwrap();
-    assert_eq!(err, Error::FillOrKillFailed.into());
-
-    // Exact fill of the full amount succeeds.
-    let r = f.client.fill_or_kill_rfq_order(&order, &sig, &f.taker, &2_000);
-    assert_eq!(r.maker_token_filled_amount, 1_000);
-}
-
-#[test]
-fn limit_order_fee_taken_from_maker_output() {
-    let f = setup();
-    let fee_recipient = Address::generate(&f.env);
-    let mut order = f.limit_order();
-    order.token_fee_amount = 10; // 10 maker tokens at full fill
-    order.fee_recipient = fee_recipient.clone();
-
-    let hash = f.client.get_limit_order_hash(&order);
-    let sig = sign(&f.env, &f.maker_key, &hash);
-
-    // Fill half: maker_filled = 500, fee = floor(500 * 10 / 1000) = 5 (maker
-    // token), taker receives 495, fee recipient receives 5.
-    let r = f.client.fill_limit_order(&order, &sig, &f.taker, &1_000);
-    assert_eq!(r.taker_token_filled_amount, 1_000);
-    assert_eq!(r.maker_token_filled_amount, 500); // gross
-    assert_eq!(r.fee_filled_amount, 5);
-    // Fee is paid in the MAKER token, skimmed from the maker output.
-    assert_eq!(f.maker_token_balance(&fee_recipient), 5);
-    assert_eq!(f.maker_token_balance(&f.taker), 495);
-    // Maker received the full taker amount for the fill.
-    assert_eq!(f.taker_token_balance(&f.maker), 1_000);
-}
-
-#[test]
-fn rfq_rejects_wrong_taker() {
-    let f = setup();
-    let mut order = f.rfq_order();
-    let designated = Address::generate(&f.env);
-    order.taker = Some(designated);
-    let hash = f.client.get_rfq_order_hash(&order);
-    let sig = sign(&f.env, &f.maker_key, &hash);
-
-    let err = f
-        .client
-        .try_fill_rfq_order(&order, &sig, &f.taker, &1_000)
-        .err()
-        .unwrap()
-        .unwrap();
-    assert_eq!(err, Error::OrderNotFillableByTaker.into());
-}
-
-#[test]
-fn hash_is_deterministic_and_pubkey_registered() {
-    let f = setup();
-    let order = f.rfq_order();
-    let h1 = f.client.get_rfq_order_hash(&order);
-    let h2 = f.client.get_rfq_order_hash(&order);
-    assert_eq!(h1, h2);
-    assert!(f.client.is_order_signer(&f.maker, &f.maker_pubkey));
-    // Sanity: contract id is a real address (keeps `contract_id` field used).
-    assert_ne!(f.contract_id, f.maker);
+    f.env.ledger().set_timestamp(now + 4_000);
+    assert_eq!(
+        f.client
+            .try_price_of(&f.rwa, &f.usd)
+            .err()
+            .unwrap()
+            .unwrap(),
+        Error::NoPrice.into()
+    );
 }
 
 #[test]
 fn sep53_digest_matches_reference() {
-    // Cross-language reference vector (computed in Node) so the contract,
-    // backend, and any bot agree on what gets signed.
     let env = Env::default();
     let hash = BytesN::from_array(
         &env,
@@ -349,9 +624,8 @@ fn sep53_digest_matches_reference() {
             0xcc, 0xdd, 0xee, 0xff,
         ],
     );
-    let digest = crate::hash::sep53_digest(&env, &hash);
     assert_eq!(
-        digest.to_array(),
+        crate::hash::sep53(&env, &hash).to_array(),
         [
             0x09, 0xa6, 0xf2, 0x36, 0x99, 0xc9, 0xfd, 0x76, 0xed, 0x9e, 0x0d, 0x6c, 0x32, 0xff,
             0x3e, 0x6c, 0x62, 0xbf, 0xe6, 0xc5, 0x04, 0x6a, 0xca, 0x5c, 0x72, 0xce, 0x6d, 0x88,
@@ -360,51 +634,183 @@ fn sep53_digest_matches_reference() {
     );
 }
 
+use crate::mock_token::{SkewToken, SkewTokenClient};
+
+fn skewed(tax_bps: i128, bonus_bps: i128) -> (Fixture, SkewTokenClient<'static>) {
+    let f = setup();
+    let token = f.env.register(SkewToken, ());
+    let client = SkewTokenClient::new(&f.env, &token);
+    client.init(&tax_bps, &bonus_bps);
+    client.mint(&f.taker, &HUGE);
+    client.approve(&f.taker, &f.client.address, &HUGE, &0u32);
+
+    f.client.set_schedule(
+        &f.admin,
+        &token,
+        &Schedule {
+            mode: ScheduleMode::Rolling,
+            rolling_seconds: (30 * DAY) as u32,
+            next_redemption_at: 0,
+            cycle_seconds: 0,
+            max_bps_per_day: 10,
+        },
+    );
+    f.client.push_price(&f.admin, &token, &ONE);
+    (f, client)
+}
+
 #[test]
-fn maker_own_key_fills_without_registration() {
-    // 0x parity: a maker signing its own orders needs NO register_order_signer.
-    let env = Env::default();
-    env.mock_all_auths();
-    let contract_id = env.register(RfqContract, ());
-    let client = RfqContractClient::new(&env, &contract_id);
-    let admin = Address::generate(&env);
-    client.initialize(&admin);
+fn a_taxed_taker_token_is_priced_on_what_actually_arrived() {
+    let (f, token) = skewed(100, 0);
+    let mut order = f.rfq();
+    order.taker_token = token.address.clone();
+    order.min_received_amount = 1;
 
-    // Maker is the account address derived from its own ed25519 signing key.
-    let maker_key = SigningKey::from_bytes(&[3u8; 32]);
-    let maker = account_address(&env, &maker_key);
-    let taker = Address::generate(&env);
-    let token_admin = Address::generate(&env);
-    // Custom Soroban tokens (no trustline needed for a real G... account).
-    let name = soroban_sdk::String::from_str(&env, "T");
-    let maker_token = env.register(test_token::TestToken, ());
-    let taker_token = env.register(test_token::TestToken, ());
-    let mtc = test_token::TestTokenClient::new(&env, &maker_token);
-    let ttc = test_token::TestTokenClient::new(&env, &taker_token);
-    mtc.initialize(&token_admin, &7u32, &name, &name);
-    ttc.initialize(&token_admin, &7u32, &name, &name);
-    mtc.mint(&maker, &HUGE);
-    ttc.mint(&taker, &HUGE);
-    let exp = env.ledger().sequence() + 1_000_000;
-    mtc.approve(&maker, &contract_id, &HUGE, &exp);
-    ttc.approve(&taker, &contract_id, &HUGE, &exp);
+    let r = f.client.fill_rfq_order(
+        &order,
+        &f.sign(&f.client.hash_rfq_order(&order)),
+        &None,
+        &f.taker,
+        &1_000_000,
+    );
+    assert_eq!(token.balance(&f.maker), 990_000);
+    assert_eq!(r.maker_filled, 960_300);
+    assert_eq!(f.usd_of(&f.taker), 960_300);
+}
 
-    let order = RfqOrder {
-        maker_token: maker_token.clone(),
-        taker_token: taker_token.clone(),
-        maker_amount: 1_000,
-        taker_amount: 2_000,
-        maker: maker.clone(),
-        taker: None,
-        tx_origin: taker.clone(),
-        pool: BytesN::from_array(&env, &[0u8; 32]),
-        expiry: env.ledger().timestamp() + 1_000,
-        salt: 1,
-    };
-    let hash = client.get_rfq_order_hash(&order);
-    // Signed by the maker's OWN key — no registration step anywhere.
-    let sig = sign(&env, &maker_key, &hash);
-    let r = client.fill_rfq_order(&order, &sig, &taker, &2_000);
-    assert_eq!(r.taker_token_filled_amount, 2_000);
-    assert_eq!(r.maker_token_filled_amount, 1_000);
+#[test]
+fn a_taxed_taker_token_cannot_walk_under_the_takers_floor() {
+    let (f, token) = skewed(100, 0);
+    let mut order = f.rfq();
+    order.taker_token = token.address.clone();
+    order.min_received_amount = 970_000;
+
+    let err = f
+        .client
+        .try_fill_rfq_order(
+            &order,
+            &f.sign(&f.client.hash_rfq_order(&order)),
+            &None,
+            &f.taker,
+            &1_000_000,
+        )
+        .err()
+        .unwrap()
+        .unwrap();
+    assert_eq!(err, Error::BelowMinReceived.into());
+    assert_eq!(f.usd_of(&f.taker), 0);
+}
+
+#[test]
+fn an_over_crediting_taker_token_cannot_inflate_the_makers_bill() {
+    let (f, token) = skewed(0, 100);
+    let mut order = f.rfq();
+    order.taker_token = token.address.clone();
+    order.min_received_amount = 1;
+
+    let r = f.client.fill_rfq_order(
+        &order,
+        &f.sign(&f.client.hash_rfq_order(&order)),
+        &None,
+        &f.taker,
+        &1_000_000,
+    );
+    assert_eq!(token.balance(&f.maker), 1_010_000);
+    assert_eq!(r.maker_filled, 970_000);
+}
+
+#[test]
+fn dutch_escrow_records_what_arrived_and_rescales_the_curve() {
+    let (f, token) = skewed(100, 0);
+    let mut order = f.dutch();
+    order.taker_token = token.address.clone();
+
+    let id = f.client.create_dutch_order(&f.taker, &order);
+    let listing = f.client.get_listing(&id).unwrap();
+
+    assert_eq!(listing.order.taker_amount, 990_000);
+    assert_eq!(token.balance(&f.client.address), 990_000);
+    assert_eq!(listing.order.start_maker_amount, 990_000);
+    assert_eq!(listing.order.min_maker_amount, 792_000);
+    assert_eq!(f.client.current_ask(&id), 990_000);
+}
+
+#[test]
+fn anyone_can_submit_a_fill_the_taker_signed_for() {
+    let f = setup();
+    let relayer = Address::generate(&f.env);
+
+    let mut order = f.rfq();
+    order.taker = Some(f.taker.clone());
+    let taker_sig = f.sign_as(&f.taker_key, &f.client.hash_request(&order.request()));
+    let maker_sig = f.sign(&f.client.hash_rfq_order(&order));
+
+    let r = f.client.fill_rfq_order(
+        &order,
+        &maker_sig,
+        &Some(taker_sig.clone()),
+        &relayer,
+        &400_000,
+    );
+    assert_eq!(r.taker_filled, 400_000);
+    assert_eq!(f.usd_of(&f.taker), 388_000);
+
+    let request_hash = f.client.hash_request(&order.request());
+    assert_eq!(f.client.request_filled_amount(&request_hash), 400_000);
+
+    let err = f
+        .client
+        .try_fill_rfq_order(&order, &maker_sig, &None, &relayer, &1_000)
+        .err()
+        .unwrap()
+        .unwrap();
+    assert_eq!(err, Error::SignerNotAuthorized.into());
+}
+
+#[test]
+fn only_the_named_sender_may_submit() {
+    let f = setup();
+    let relayer = Address::generate(&f.env);
+
+    let mut order = f.rfq();
+    order.taker = Some(f.taker.clone());
+    order.sender = Some(relayer.clone());
+    let taker_sig = Some(f.sign_as(&f.taker_key, &f.client.hash_request(&order.request())));
+    let maker_sig = f.sign(&f.client.hash_rfq_order(&order));
+
+    let err = f
+        .client
+        .try_fill_rfq_order(&order, &maker_sig, &taker_sig, &f.taker, &1_000)
+        .err()
+        .unwrap()
+        .unwrap();
+    assert_eq!(err, Error::WrongSender.into());
+
+    assert_eq!(
+        f.client
+            .fill_rfq_order(&order, &maker_sig, &taker_sig, &relayer, &1_000)
+            .taker_filled,
+        1_000
+    );
+}
+
+#[test]
+fn a_fill_needs_the_takers_authorisation() {
+    let f = setup();
+    let order = f.rfq();
+    let sig = f.sign(&f.client.hash_rfq_order(&order));
+
+    f.env.set_auths(&[]);
+    assert!(f
+        .client
+        .try_fill_rfq_order(&order, &sig, &None, &f.taker, &1_000)
+        .is_err());
+    assert_eq!(f.usd_of(&f.taker), 0);
+    assert_eq!(f.client.filled_amount(&f.client.hash_rfq_order(&order)), 0);
+
+    f.env.mock_all_auths();
+    let r = f
+        .client
+        .fill_rfq_order(&order, &sig, &None, &f.taker, &1_000);
+    assert_eq!(r.taker_filled, 1_000);
 }

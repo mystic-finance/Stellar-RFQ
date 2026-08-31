@@ -1,153 +1,181 @@
-//! Persistent storage layout and typed accessors.
-//!
-//! Order fill state and registries live in **persistent** storage (they must
-//! outlive a single transaction and survive ledger archival via TTL bumps).
-//! Configuration (admin, protocol fee) lives in **instance** storage so it is
-//! loaded alongside the contract.
+use soroban_sdk::{contracttype, Address, BytesN, Env, IntoVal, TryFromVal, Val};
 
-use soroban_sdk::{contracttype, Address, BytesN, Env};
+use crate::types::{Config, Listing, OracleCfg, PushedPrice, Reference, Schedule};
 
-/// Discriminates the two order families. 0x keeps separate min-salt mappings for
-/// limit vs RFQ pair cancellation; this mirrors that.
-#[contracttype]
-#[derive(Clone, Copy)]
-pub enum OrderKind {
-    Rfq,
-    Limit,
-}
-
-// Roughly 30 days of ledgers at ~5s close time, used to keep fill state and
-// registry entries alive. Real deployments tune these to their needs.
-const BUMP_THRESHOLD: u32 = 518_400;
-const BUMP_EXTEND: u32 = 535_680;
+const THRESHOLD: u32 = 518_400;
+const EXTEND: u32 = 535_680;
 
 #[contracttype]
 #[derive(Clone)]
 pub enum DataKey {
-    /// Admin address (instance) — upgrade authority.
     Admin,
-    /// order_hash -> taker-token amount already filled (persistent).
+    Cfg,
+    Ref,
+    Paused,
+    NextId,
+    Keeper(Address),
+    Sched(Address),
+    Oracle(Address, Address),
+    Fallback(Address),
     Filled(BytesN<32>),
-    /// order_hash -> explicitly cancelled flag (persistent).
-    Cancelled(BytesN<32>),
-    /// (kind, maker, maker_token, taker_token) -> minimum valid salt
-    /// (persistent). Orders for this pair with `salt < min_salt` are cancelled.
-    /// Kept separate for RFQ vs limit, matching 0x.
-    MinSalt(OrderKind, Address, Address, Address),
-    /// (maker, signer_pubkey) -> allowed. Which ed25519 keys may sign for a
-    /// maker (persistent). Equivalent to 0x `orderSignerRegistry`.
-    OrderSigner(Address, BytesN<32>),
-    /// (origin_owner, submitter) -> allowed. Equivalent to 0x `originRegistry`.
-    RfqOrigin(Address, Address),
+    RequestFilled(BytesN<32>),
+    SaltCancelled(Address, u64),
+    Signer(Address, BytesN<32>),
+    Listing(u64),
 }
 
-fn bump(env: &Env, key: &DataKey) {
+/// Bumps the entry on a read: a live order or an open listing can sit untouched
+/// past its TTL, and an archived entry fails every call until it is restored.
+fn get<T: TryFromVal<Env, Val>>(env: &Env, key: &DataKey) -> Option<T> {
+    let val = env.storage().persistent().get(key);
+    if val.is_some() {
+        env.storage()
+            .persistent()
+            .extend_ttl(key, THRESHOLD, EXTEND);
+    }
+    val
+}
+
+/// Every mutating entry point writes at least one persistent entry, so the
+/// instance TTL is refreshed here rather than in each caller.
+fn set<T: IntoVal<Env, Val>>(env: &Env, key: DataKey, val: &T) {
+    env.storage().persistent().set(&key, val);
     env.storage()
         .persistent()
-        .extend_ttl(key, BUMP_THRESHOLD, BUMP_EXTEND);
+        .extend_ttl(&key, THRESHOLD, EXTEND);
+    extend_instance(env);
 }
 
-// --- admin / config (instance) ---
+fn iget<T: TryFromVal<Env, Val>>(env: &Env, key: DataKey) -> Option<T> {
+    env.storage().instance().get(&key)
+}
+
+fn iset<T: IntoVal<Env, Val>>(env: &Env, key: DataKey, val: &T) {
+    env.storage().instance().set(&key, val);
+    extend_instance(env);
+}
 
 pub fn has_admin(env: &Env) -> bool {
     env.storage().instance().has(&DataKey::Admin)
 }
 
-pub fn set_admin(env: &Env, admin: &Address) {
-    env.storage().instance().set(&DataKey::Admin, admin);
+pub fn admin(env: &Env) -> Address {
+    iget(env, DataKey::Admin).unwrap()
 }
 
-pub fn get_admin(env: &Env) -> Address {
-    env.storage().instance().get(&DataKey::Admin).unwrap()
+pub fn set_admin(env: &Env, v: &Address) {
+    iset(env, DataKey::Admin, v);
 }
 
-// --- fill state (persistent) ---
-
-pub fn get_filled(env: &Env, order_hash: &BytesN<32>) -> i128 {
-    env.storage()
-        .persistent()
-        .get(&DataKey::Filled(order_hash.clone()))
-        .unwrap_or(0)
+pub fn config(env: &Env) -> Config {
+    iget(env, DataKey::Cfg).unwrap()
 }
 
-pub fn set_filled(env: &Env, order_hash: &BytesN<32>, amount: i128) {
-    let key = DataKey::Filled(order_hash.clone());
-    env.storage().persistent().set(&key, &amount);
-    bump(env, &key);
+pub fn set_config(env: &Env, v: &Config) {
+    iset(env, DataKey::Cfg, v);
 }
 
-pub fn is_cancelled(env: &Env, order_hash: &BytesN<32>) -> bool {
-    env.storage()
-        .persistent()
-        .get(&DataKey::Cancelled(order_hash.clone()))
-        .unwrap_or(false)
+pub fn reference(env: &Env) -> Reference {
+    iget(env, DataKey::Ref).unwrap()
 }
 
-pub fn set_cancelled(env: &Env, order_hash: &BytesN<32>) {
-    let key = DataKey::Cancelled(order_hash.clone());
-    env.storage().persistent().set(&key, &true);
-    bump(env, &key);
+pub fn set_reference(env: &Env, v: &Reference) {
+    iset(env, DataKey::Ref, v);
 }
 
-pub fn get_min_salt(
-    env: &Env,
-    kind: OrderKind,
-    maker: &Address,
-    maker_token: &Address,
-    taker_token: &Address,
-) -> u64 {
-    env.storage()
-        .persistent()
-        .get(&DataKey::MinSalt(
-            kind,
-            maker.clone(),
-            maker_token.clone(),
-            taker_token.clone(),
-        ))
-        .unwrap_or(0)
+pub fn paused(env: &Env) -> bool {
+    iget(env, DataKey::Paused).unwrap_or(false)
 }
 
-pub fn set_min_salt(
-    env: &Env,
-    kind: OrderKind,
-    maker: &Address,
-    maker_token: &Address,
-    taker_token: &Address,
-    min_salt: u64,
-) {
-    let key = DataKey::MinSalt(kind, maker.clone(), maker_token.clone(), taker_token.clone());
-    env.storage().persistent().set(&key, &min_salt);
-    bump(env, &key);
+pub fn set_paused(env: &Env, v: bool) {
+    iset(env, DataKey::Paused, &v);
 }
 
-pub fn is_order_signer(env: &Env, maker: &Address, signer: &BytesN<32>) -> bool {
-    env.storage()
-        .persistent()
-        .get(&DataKey::OrderSigner(maker.clone(), signer.clone()))
-        .unwrap_or(false)
+pub fn next_id(env: &Env) -> u64 {
+    let id: u64 = iget(env, DataKey::NextId).unwrap_or(1);
+    iset(env, DataKey::NextId, &(id + 1));
+    id
 }
 
-pub fn set_order_signer(env: &Env, maker: &Address, signer: &BytesN<32>, allowed: bool) {
-    let key = DataKey::OrderSigner(maker.clone(), signer.clone());
-    env.storage().persistent().set(&key, &allowed);
-    bump(env, &key);
+fn extend_instance(env: &Env) {
+    env.storage().instance().extend_ttl(THRESHOLD, EXTEND);
 }
 
-pub fn is_allowed_origin(env: &Env, origin_owner: &Address, submitter: &Address) -> bool {
-    env.storage()
-        .persistent()
-        .get(&DataKey::RfqOrigin(origin_owner.clone(), submitter.clone()))
-        .unwrap_or(false)
+pub fn is_keeper(env: &Env, who: &Address) -> bool {
+    get(env, &DataKey::Keeper(who.clone())).unwrap_or(false)
 }
 
-pub fn set_allowed_origin(env: &Env, origin_owner: &Address, submitter: &Address, allowed: bool) {
-    let key = DataKey::RfqOrigin(origin_owner.clone(), submitter.clone());
-    env.storage().persistent().set(&key, &allowed);
-    bump(env, &key);
+pub fn set_keeper(env: &Env, who: &Address, v: bool) {
+    set(env, DataKey::Keeper(who.clone()), &v);
 }
 
-pub fn extend_instance_ttl(env: &Env) {
-    env.storage()
-        .instance()
-        .extend_ttl(BUMP_THRESHOLD, BUMP_EXTEND);
+pub fn schedule(env: &Env, asset: &Address) -> Option<Schedule> {
+    get(env, &DataKey::Sched(asset.clone()))
+}
+
+pub fn set_schedule(env: &Env, asset: &Address, s: &Schedule) {
+    set(env, DataKey::Sched(asset.clone()), s);
+}
+
+pub fn oracle(env: &Env, base: &Address, quote: &Address) -> Option<OracleCfg> {
+    get(env, &DataKey::Oracle(base.clone(), quote.clone()))
+}
+
+pub fn set_oracle(env: &Env, base: &Address, quote: &Address, cfg: &Option<OracleCfg>) {
+    let key = DataKey::Oracle(base.clone(), quote.clone());
+    match cfg {
+        Some(c) => set(env, key, c),
+        None => {
+            env.storage().persistent().remove(&key);
+            extend_instance(env);
+        }
+    }
+}
+
+pub fn fallback(env: &Env, asset: &Address) -> Option<PushedPrice> {
+    get(env, &DataKey::Fallback(asset.clone()))
+}
+
+pub fn set_fallback(env: &Env, asset: &Address, p: &PushedPrice) {
+    set(env, DataKey::Fallback(asset.clone()), p);
+}
+
+pub fn filled(env: &Env, hash: &BytesN<32>) -> i128 {
+    get(env, &DataKey::Filled(hash.clone())).unwrap_or(0)
+}
+
+pub fn set_filled(env: &Env, hash: &BytesN<32>, amount: i128) {
+    set(env, DataKey::Filled(hash.clone()), &amount);
+}
+
+pub fn request_filled(env: &Env, hash: &BytesN<32>) -> i128 {
+    get(env, &DataKey::RequestFilled(hash.clone())).unwrap_or(0)
+}
+
+pub fn set_request_filled(env: &Env, hash: &BytesN<32>, amount: i128) {
+    set(env, DataKey::RequestFilled(hash.clone()), &amount);
+}
+
+pub fn is_salt_cancelled(env: &Env, signer: &Address, salt: u64) -> bool {
+    get(env, &DataKey::SaltCancelled(signer.clone(), salt)).unwrap_or(false)
+}
+
+pub fn set_salt_cancelled(env: &Env, signer: &Address, salt: u64) {
+    set(env, DataKey::SaltCancelled(signer.clone(), salt), &true);
+}
+
+pub fn is_signer(env: &Env, maker: &Address, signer: &BytesN<32>) -> bool {
+    get(env, &DataKey::Signer(maker.clone(), signer.clone())).unwrap_or(false)
+}
+
+pub fn set_signer(env: &Env, maker: &Address, signer: &BytesN<32>, v: bool) {
+    set(env, DataKey::Signer(maker.clone(), signer.clone()), &v);
+}
+
+pub fn listing(env: &Env, id: u64) -> Option<Listing> {
+    get(env, &DataKey::Listing(id))
+}
+
+pub fn set_listing(env: &Env, id: u64, l: &Listing) {
+    set(env, DataKey::Listing(id), l);
 }

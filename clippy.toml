@@ -1,0 +1,2 @@
+# Contract code sits at CC <= 6; this catches drift well before it gets ugly.
+cognitive-complexity-threshold = 10

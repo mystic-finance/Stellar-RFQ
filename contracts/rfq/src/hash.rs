@@ -1,54 +1,32 @@
-//! Canonical, domain-separated order hashing.
-//!
-//! 0x uses EIP-712 typed-data hashing. The Soroban equivalent here is:
-//!
-//! ```text
-//! order_hash = sha256( DOMAIN_TAG || current_contract_address_xdr || order_xdr )
-//! ```
-//!
-//! Using the canonical XDR encoding of the `#[contracttype]` struct means the
-//! hash is fully reproducible: an off-chain signer never has to re-implement the
-//! byte layout — it calls [`crate::RfqContract::get_rfq_order_hash`] /
-//! `get_limit_order_hash` (read-only) to obtain the exact 32-byte digest, then
-//! signs it with ed25519. The contract address in the preimage binds a signature
-//! to this specific deployment (domain separation).
-
 use soroban_sdk::{xdr::ToXdr, Bytes, BytesN, Env};
 
-use crate::types::{LimitOrder, RfqOrder};
+use crate::types::{FixedOrder, Request, RfqOrder};
 
-const RFQ_DOMAIN: &[u8] = b"STELLAR_RFQ_ORDER_V1";
-const LIMIT_DOMAIN: &[u8] = b"STELLAR_LIMIT_ORDER_V1";
+const REQUEST_DOMAIN: &[u8] = b"OCTARINE_REQUEST_V1";
+const RFQ_DOMAIN: &[u8] = b"OCTARINE_RFQ_ORDER_V1";
+const FIXED_DOMAIN: &[u8] = b"OCTARINE_FIXED_ORDER_V1";
+const SEP53_PREFIX: &[u8] = b"Stellar Signed Message:\n";
 
-fn hash_with_domain(env: &Env, domain: &[u8], body: Bytes) -> BytesN<32> {
+fn digest(env: &Env, domain: &[u8], body: Bytes) -> BytesN<32> {
     let mut buf = Bytes::from_slice(env, domain);
     buf.append(&env.current_contract_address().to_xdr(env));
     buf.append(&body);
     env.crypto().sha256(&buf).to_bytes()
 }
 
-pub fn rfq_order_hash(env: &Env, order: &RfqOrder) -> BytesN<32> {
-    hash_with_domain(env, RFQ_DOMAIN, order.clone().to_xdr(env))
+pub fn request(env: &Env, r: &Request) -> BytesN<32> {
+    digest(env, REQUEST_DOMAIN, r.clone().to_xdr(env))
 }
 
-pub fn limit_order_hash(env: &Env, order: &LimitOrder) -> BytesN<32> {
-    hash_with_domain(env, LIMIT_DOMAIN, order.clone().to_xdr(env))
+pub fn rfq_order(env: &Env, order: &RfqOrder) -> BytesN<32> {
+    digest(env, RFQ_DOMAIN, order.clone().to_xdr(env))
 }
 
-// SEP-53 message-signing prefix. This is the Stellar analogue of EIP-712's
-// signing prefix: wallets (`signMessage`) and bots produce
-// `ed25519_sign(secret, SHA256(PREFIX || message))`, so the contract verifies
-// the same digest rather than the raw order hash.
-const SEP53_PREFIX: &[u8] = b"Stellar Signed Message:\n";
+pub fn fixed_order(env: &Env, order: &FixedOrder) -> BytesN<32> {
+    digest(env, FIXED_DOMAIN, order.clone().to_xdr(env))
+}
 
-/// SEP-53 signing digest over an order hash:
-/// `SHA256("Stellar Signed Message:\n" || order_hash)`.
-///
-/// The order hash (32 raw bytes) is the SEP-53 *binary* message. Off-chain, the
-/// signer passes the order hash base64-encoded to `signMessage`; Stellar wallets
-/// base64-decode it back to the raw bytes before applying SEP-53, so this
-/// reproduces exactly what was signed (a bot signs the identical digest).
-pub fn sep53_digest(env: &Env, order_hash: &BytesN<32>) -> BytesN<32> {
+pub fn sep53(env: &Env, order_hash: &BytesN<32>) -> BytesN<32> {
     let mut buf = Bytes::from_slice(env, SEP53_PREFIX);
     buf.append(&Bytes::from_array(env, &order_hash.to_array()));
     env.crypto().sha256(&buf).to_bytes()
