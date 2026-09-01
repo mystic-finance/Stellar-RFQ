@@ -10,7 +10,7 @@ Pre-Launch #1 — MVP.
 
 ## Telegram Username
 
-*(to fill in)*
+@Kelmat
 
 ## Tranche Deliverables
 
@@ -43,6 +43,8 @@ their own wallet.
 - UI Live at https://stellar-setup.octarine-ui.pages.dev
 
 ## Deliverable Verification — Video
+
+https://www.loom.com/share/e4664b4ee06144ac9e464ebf2fba1b9d
 
 ## Additional Deliverable Verification
 
