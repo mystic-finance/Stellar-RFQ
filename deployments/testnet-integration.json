@@ -1,29 +1,29 @@
 {
-  "ranAt": "2026-10-19T01:15:59.292Z",
+  "ranAt": "2026-10-19T07:13:44.491Z",
   "contracts": {
-    "makerUsdc": "4437048644",
+    "makerUsdc": "1809874969",
     "price": "1052397000000000000",
-    "usdcVault": "CBNX6ZISWNI3CKJEBUOLUI2MYDRZTYQM7ATQQRWDNCHVSMH7AJPOIRB6",
-    "rwaVault": "CASMO4PM7UF7D24RXNVOIACVAEOF2SR5DD3DZRX3UNQ4B2CZBSATUZ7F",
-    "facility": "CBZV6CC6T4X3P4YDKPTAOS4U4ZLKTWCPNNV6UMRAMZX64RFK4Q3Q3UWE",
-    "blendAdapter": "CBPRWFA5T2K25SHFN7BTLGKTJHAE6QZNCDCYS67AB3BLROTNPN6JG2AQ",
-    "defindexAdapter": "CDUV5C5YRWEHRJSJ3PMOTTHUAFMUKNBWLQNX37B4BQKGHBX5OFK73B6S",
-    "lp": "2218524322",
-    "queue": "CCABC7U3ELYRIXZMGFCIMBHBC7V44B67MKKTHDY67WAEAAL2F7LGUV2G"
+    "usdcVault": "CCYQFAT4S6FVMCNNDFHJNHJE4DWVYYQBRKHZGEZZEJESFLLQFL6URRK2",
+    "rwaVault": "CCKHANQVIR5SVAESMJ2LT4IQCUWX2BMZ32J4FBAIPGY7EBGBNOMFSCJT",
+    "facility": "CDUDTNVNBYYRKCFNV7ZGVWHLEMYB2UIQVWVDQRJJT3TV5UMT7FRUD6C5",
+    "blendAdapter": "CDNXWVB5MYWECNPF5RCTITZC5GH7BJLOJT77CFDXZI4G5MU25UB5EEU2",
+    "defindexAdapter": "CC4JABSFX6MBWWFVUA24FGXQ4GOXVQAHR4MUX2OVUHC5MVA6AHD35NVA",
+    "lp": "904937484",
+    "queue": "CDDY3DQO5SFTXQRSG7QX6VXGE6AFQNVI36QLEODQMMYJ6BL3JRIADXK2"
   },
   "failures": 0,
   "steps": [
     {
       "step": "trustline USDC GBH2FDJQSROZAOIWBCBAYPSPTXPV2TUQAIWF5IISC3DRWEV6Z24R3PN2",
-      "tx": "2b163c52750f29a585641210c7869db8b5c5678674c5ae4f69ec414ca2336a65"
+      "tx": "c4dc78266c8a2b4282e284adb0384e565fa68e4ad9439e75f41aee79da8d20b3"
     },
     {
       "step": "trustline USDC GDKL2GUQ44W5TYZVI7TN2RPWEIQJ7C6XZDISERV5LPHYFBJSDCDR7HVV",
-      "tx": "08e7038f7fc3d0779c32f819197c7864392c9421fbfb5623a9984d616b24e963"
+      "tx": "b7e0bd12db3eb778f90ec52354b7fa2fa181255e73d34d892a40e889f5c481a5"
     },
     {
       "step": "trustline USDC GAUXHH6CISOOSKG4U6YLTXIVWLOM27LKFGU27CZIV4UF7SRSVM24FFAA",
-      "tx": "788572077253bfcac28109035580126c70fc8d09c737cfcdf2896038ada0a442"
+      "tx": "f2854bd950a64cf174f1cf4f9dbad60639fab9ee4d31992138d4c9cc2ed51846"
     },
     {
       "step": "check: trustlines open",
@@ -33,18 +33,18 @@
     },
     {
       "step": "dex.swap soroswap",
-      "tx": "d455335e28b929e79d336004c54167357aabfd69c5e711e9ed73e5f0798aa0bf"
+      "tx": "531ba5f425941cf8f4e12fab4502f0d2b5c673fcce4cdb49f468cb1a3b79655c"
     },
     {
       "step": "check: taker received USDC",
       "detail": {
         "ok": true,
-        "detail": "\"16.5282406 USDC\""
+        "detail": "\"14.104761 USDC\""
       }
     },
     {
       "step": "dex.swap aquarius",
-      "tx": "06c5ac7fec8f9f2c4eede1283c5885dfe5cfb9a4c32b833c11e6d31ee065bf7b"
+      "tx": "c4d1eade4ba53b5deaa89735c4cb00a3bf80b4085850b31c50f50c7c3be39cb0"
     },
     {
       "step": "check: taker received USDC",
@@ -54,17 +54,17 @@
     },
     {
       "step": "approve router XLM",
-      "tx": "c546c2c9d566cf0a4479a4dd3a5210000c61318c19c75711806f419b262990c7"
+      "tx": "3730c47ea9832e0da3212212fb6531549f82f5be396dd27ad452784abed704af"
     },
     {
       "step": "router.fill dex",
-      "tx": "0304692d534dd90e4628803bffdc20e140fadba2d1ff877060304b6f6ed2d281"
+      "tx": "ad510a09792091cf43f60159b4a4f995b2239a16517e22564ffcbaa6a767ad0d"
     },
     {
       "step": "check: router delivered the split",
       "detail": {
         "ok": true,
-        "detail": "\"13.8051469 USDC\""
+        "detail": "\"12.4008078 USDC\""
       }
     },
     {
@@ -75,60 +75,64 @@
     },
     {
       "step": "dex.swap maker",
-      "tx": "5fce42c63f49fcaab7708ab059b022c388e29b1db511708d8af5ce8f624b50dd"
+      "tx": "73b6e8830ff20aaada2b5b457008738e077fd878c649c5b4a47ecff0e722f542"
     },
     {
       "step": "check: maker holds USDC",
       "detail": {
         "ok": true,
-        "detail": "\"443.7048644 USDC\""
+        "detail": "\"180.9874969 USDC\""
       }
+    },
+    {
+      "step": "keeper push",
+      "tx": "a2e86a09d414afd1dcd02bde0754e248db60ea3b99161baa4787a9c78fe15f3a"
     },
     {
       "step": "check: oracle serves the NAV",
       "detail": {
         "ok": true,
-        "detail": "{\"price\":\"1052397000000000000\",\"timestamp\":\"1792369477\"}"
+        "detail": "{\"price\":\"1052397000000000000\",\"timestamp\":\"1792393763\"}"
       }
     },
     {
       "step": "create_vault USDC",
-      "tx": "6cf8c620cad0358d8880e2e558b4a26c1050247f7fe894888cbff103f70a144e"
+      "tx": "49fb673f30b34ce90d3ec51bdaeb7d507fd0b5d3a534e3581258dd68958cda48"
     },
     {
       "step": "create_vault RWA",
-      "tx": "b3d03e13a9f4f261855ee9f7bc79634d6cfa60cf1a9e168d2497442602881628"
+      "tx": "f52dda88dae554af47a491e04edd00e042a101b098532de1acf7d8fefbe8acd9"
     },
     {
       "step": "create_facility",
-      "tx": "1ae0df456957a36b260048ef560c699d5bd37ea01b989e39fc6547733520b26f"
+      "tx": "2f6351d911f56bda7f99d77ae4551ce9a076275c44f9914cbc9e7690beae01d4"
     },
     {
       "step": "vault.submit venue blend",
-      "tx": "221f12a072100b1b3c17997949aad9d2aa40ac6401cd507f86d3a2f861f4077e"
+      "tx": "47adc1cb3612870f8bf5f7653a9c4025d5c51ab57c61e6db6c591780f756da84"
     },
     {
       "step": "vault.accept venue blend",
-      "tx": "78c349a65e90bf2d6629fc04c07d03606172de914db980befea0e512e0dd2a26"
+      "tx": "8092a87d8dd7837bdede1362acb13fdd3fb274da598eac0f854385a9afaf9f18"
     },
     {
       "step": "vault.submit venue defindex",
-      "tx": "6a6aa02e5c449c7f8ecd56816749b0118cd12d25926a3b0590fe4d09b05b3422"
+      "tx": "e7c9ab1a2f9bd43406103111c500c3c6c7e64255e0da3a92056ff4bd0d8979e6"
     },
     {
       "step": "vault.accept venue defindex",
-      "tx": "5476876f7ea6663495bc56beb902bb65b5faade593b24f9de1c6d88de31f5ea8"
+      "tx": "2b97b6971364300a1fd51372f1a2b1b6d9b39345eb9fe19bca621024e168d59d"
     },
     {
       "step": "check: USDC vault has the Blend and DeFindex adapters",
       "detail": {
         "ok": true,
-        "detail": "[\"CBPRWFA5T2K25SHFN7BTLGKTJHAE6QZNCDCYS67AB3BLROTNPN6JG2AQ\",\"CDUV5C5YRWEHRJSJ3PMOTTHUAFMUKNBWLQNX37B4BQKGHBX5OFK73B6S\"]"
+        "detail": "[\"CDNXWVB5MYWECNPF5RCTITZC5GH7BJLOJT77CFDXZI4G5MU25UB5EEU2\",\"CC4JABSFX6MBWWFVUA24FGXQ4GOXVQAHR4MUX2OVUHC5MVA6AHD35NVA\"]"
       }
     },
     {
       "step": "facility.submit Rwa",
-      "tx": "af0afa5b09ce5e03d59dbc054a819dc63aa01fa5b51a985d45237337c0626768"
+      "tx": "af1c1e1c1a48722ae6acbe803a75e3d5a6115912629126252c1f62630f94407c"
     },
     {
       "step": "check: SDK derives the listing's timelock kind",
@@ -145,11 +149,11 @@
     },
     {
       "step": "facility.accept Rwa",
-      "tx": "b96304813fdac4d85a7788105d4a83f0f819a7b84769a8ec439b22e5f787a515"
+      "tx": "b85b17fa4ae7b8f08007f298fa93e7e5ade538e439090d93e123b822ac83efd4"
     },
     {
       "step": "set_active",
-      "tx": "0681388ac4f2ee5d9c917473426f5bb48f5e947e1e3562c2a938ec0a808d9250"
+      "tx": "48a6ab4f4c13a2f7779ba331f49bdf2b7b83f2dfa144a10f59d874e828bc6c6c"
     },
     {
       "step": "check: facility listed and routable",
@@ -159,60 +163,60 @@
     },
     {
       "step": "facility.deposit",
-      "tx": "b28dcea94c46e9b817289531b67ab76ae099481714b18316f85271c3fa93ff2e"
+      "tx": "829f6ddb7ffd3188b9eb991db46e5ec802aa58c88008cc75d7164f97c62c158b"
     },
     {
       "step": "check: NAV equals the deposit",
       "detail": {
         "ok": true,
-        "detail": "\"221.8524322 USDC\""
+        "detail": "\"90.4937484 USDC\""
       }
     },
     {
       "step": "vault.allocate blend",
-      "tx": "bd1c976558ceed2d290a0a78e7ea2d742b54ad202f2ef0b85c409e4a6451ccfc"
+      "tx": "8d9308b340fa9adf833432e4eeb44c7cb967826c07d75533686c87701c56249f"
     },
     {
       "step": "vault.allocate defindex",
-      "tx": "e5a4b0ad00c8699b0ecc4b53fd81bf2215103bb314f815ef6a4ceb267b445d3e"
+      "tx": "dfaecc0e10543af1b34dc37a780b95342c8c426402f5a9ccc4ef420e3c50a1c1"
     },
     {
       "step": "check: Blend position (real pool)",
       "detail": {
         "ok": true,
-        "detail": "\"73.9508117 USDC\""
+        "detail": "\"30.1645829 USDC\""
       }
     },
     {
       "step": "check: DeFindex position (real vault)",
       "detail": {
         "ok": true,
-        "detail": "\"73.9508107 USDC\""
+        "detail": "\"30.1645828 USDC\""
       }
     },
     {
       "step": "check: allocation does not move NAV beyond rounding",
       "detail": {
         "ok": true,
-        "detail": "\"221.8524331 USDC\""
+        "detail": "\"90.4937484 USDC\""
       }
     },
     {
       "step": "check: on-chain quote matches the SDK preview net of the 50 bps fee",
       "detail": {
         "ok": true,
-        "detail": "{\"quoted\":\"1284725249\",\"preview\":\"1291181154\"}"
+        "detail": "{\"quoted\":\"524040246\",\"preview\":\"526673614\"}"
       }
     },
     {
       "step": "router.fill facility",
-      "tx": "0366f5ff754e93642e456260e31a79916f1374d939918415603a56a97e824435"
+      "tx": "025c0ccfb28e54f84590857b3a08d353a79171a596e191e52d0febdddcd21c07"
     },
     {
       "step": "check: taker paid the quote",
       "detail": {
         "ok": true,
-        "detail": "\"128.4725249 USDC\""
+        "detail": "\"52.4040246 USDC\""
       }
     },
     {
@@ -225,7 +229,7 @@
       "step": "check: the payout drew on Blend once idle ran short",
       "detail": {
         "ok": true,
-        "detail": "\"18.7835078 USDC\""
+        "detail": "\"7.6618046 USDC\""
       }
     },
     {
@@ -236,7 +240,7 @@
     },
     {
       "step": "facility_aggregator.swap buy",
-      "tx": "15d995a0d08120080f5ab472a100b8097441c16d8047242595d0e9acf4329bc5"
+      "tx": "8fc58f4c07fc0aa3c9d14418097f94e57f3037f3ecc71af78697a6dccbcc65a0"
     },
     {
       "step": "check: taker received RWA",
@@ -246,18 +250,22 @@
     },
     {
       "step": "facility.book",
-      "tx": "7582f8bb4ae6a7188e70617c4ebf801e15d7e4f735929cdc7a98e2e3c24477dc"
+      "tx": "1c90e4453222a095a45d196ba518433e92245104cc4abbcc55cded15d4a6bc3b"
     },
     {
       "step": "check: receivable carried at the mark",
       "detail": {
         "ok": true,
-        "detail": "{\"amount\":\"584427438\",\"carried\":\"615049682\"}"
+        "detail": "{\"amount\":\"209971742\",\"carried\":\"220973631\"}"
       }
     },
     {
+      "step": "admin sources USDC",
+      "tx": "2309b1cf5a36281fa5f1f6997915dd39dce33dd122fb2fb0c045d881a3bfdad8"
+    },
+    {
       "step": "facility.settle",
-      "tx": "29b4c3807f0cb53f4142b01bed2abb6f2c38a3e7a6826930b8f952ed2bb324ec"
+      "tx": "93d6de691007c85e506d7a20b6c1a4cc6389527c4d3639f636192fe73136290d"
     },
     {
       "step": "check: redemption closed",
@@ -267,23 +275,23 @@
     },
     {
       "step": "create_queue",
-      "tx": "6709b3155a1c188718f3c6f5c6f0a27ba1e71e11cb88e93de10dbbc9a49f7432"
+      "tx": "9d4ff443b0c85003b317e7147aecf573c4076849af2190124009ac982c45c90b"
     },
     {
       "step": "facility.submit Queue",
-      "tx": "7686322aa6996bf8fea3e03ba6f03f3ae4dfef005637231bcc79732bdf5f4e0e"
+      "tx": "bdf109ec419f53fb3e4b244c91ba8fe0bd3c9ed37f36fe8ba9499d1094110d2b"
     },
     {
       "step": "facility.accept Queue",
-      "tx": "bf5ef917a7ececd15156a9db4864dc4e72a8324a579634d5636d6ea9744d4644"
+      "tx": "c377a8b33fc2fde6870acc4d6af4a9a25693ba7bd7f0760f001c9cebd0c675c3"
     },
     {
       "step": "queue.request",
-      "tx": "d45b425c252c271ab2e0661b680d4ae60eb27fcf2a685291441b69098aa6b0d3"
+      "tx": "9866b4ef80e65f6dbb6260abe8f0d37acbc9db8c93b4ed99f9fe2e91ed710077"
     },
     {
       "step": "queue.process",
-      "tx": "88d74947265e53c13412812df14399314ba87dd76cd3844db6a0581fa38a740d"
+      "tx": "a9511531ec0e49947e5ad98ea08652bcdaa23225c6cf9f5080f617f75b006d07"
     },
     {
       "step": "check: position served (anyone may process)",
@@ -300,20 +308,20 @@
     },
     {
       "step": "facility.withdraw",
-      "tx": "b51fbd7a97365f3798db156fcba43a7adcdf55431a1bbbcf0b9e6fea4d59868f"
+      "tx": "7721011ea9aebcb298ae9c516241241c045fe5a53a4d857a2e241a331a1a43be"
     },
     {
       "step": "check: LP received the withdrawal",
       "detail": {
         "ok": true,
-        "detail": "\"54.3934365 USDC\""
+        "detail": "\"23.6360468 USDC\""
       }
     },
     {
       "step": "check: NAV and supply consistent",
       "detail": {
         "ok": true,
-        "detail": "{\"nav\":\"111.9989101 USDC\",\"supply\":\"1119971336143726\"}"
+        "detail": "{\"nav\":\"44.2357925 USDC\",\"supply\":\"442349167357642\"}"
       }
     }
   ]

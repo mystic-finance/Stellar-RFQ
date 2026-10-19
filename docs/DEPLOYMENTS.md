@@ -33,20 +33,27 @@ and keeper: `GBH2FDJQSROZAOIWBCBAYPSPTXPV2TUQAIWF5IISC3DRWEV6Z24R3PN2`.
 | SEP-56 adapter (allowlisted) | `8703db09d8902324830f17f41069bc4e997e8db8b5611e3604312534fcc0fa9e` |
 | mock venue (testnet only) | `4fe5deb90568a00360ef571f74acbc3a2991e03fb8326a0ae8120ff432a9f667` |
 
-### Live facility (created by the integration run)
+### Live facilities
 
-| | Address |
-|---|---|
-| Facility (oLP), active on the router | `CBZV6CC6T4X3P4YDKPTAOS4U4ZLKTWCPNNV6UMRAMZX64RFK4Q3Q3UWE` |
-| USDC vault | `CBNX6ZISWNI3CKJEBUOLUI2MYDRZTYQM7ATQQRWDNCHVSMH7AJPOIRB6` |
-| RWA vault | `CASMO4PM7UF7D24RXNVOIACVAEOF2SR5DD3DZRX3UNQ4B2CZBSATUZ7F` |
-| Blend adapter (USDC vault → Blend v2 pool) | `CBPRWFA5T2K25SHFN7BTLGKTJHAE6QZNCDCYS67AB3BLROTNPN6JG2AQ` |
-| DeFindex adapter (USDC vault → DeFindex USDC vault) | `CDUV5C5YRWEHRJSJ3PMOTTHUAFMUKNBWLQNX37B4BQKGHBX5OFK73B6S` |
-| Withdrawal queue | `CCABC7U3ELYRIXZMGFCIMBHBC7V44B67MKKTHDY67WAEAAL2F7LGUV2G` |
+Four facilities over USDC are routable from the router. Every RWA is priced by
+the push oracle:
 
-The facility lists the demo RWA below at 10.00 bps/day bid and 5.00 bps/day
-ask, over a 30-day rolling horizon. It is priced by the push oracle from
-Centrifuge JAAA's NAV on Ethereum.
+- **tCLO and ORWA** carry the live Centrifuge JAAA NAV, pushed by the keeper.
+- **The other tokens** carry stand-in NAVs that the admin pushed.
+
+Each USDC vault lends to real Blend v2 and/or DeFindex. Each facility has LP
+capital and its first sales on-chain.
+
+| Facility | Assets (bid / ask, bps/day · cap · redemption) | Lends idle cash to |
+|---|---|---|
+| **Octarine Treasury** `CCAY5JZOITKZOOFNHKG6K3OTZQZIJRJPBFOXEACVYM7UD6XEPXCJHNE3` | tTBILL (3.00 / 1.50 · 60% · 7d rolling), tMMF (1.50 / 0.50 · 60% · 1d rolling) | Blend v2 |
+| **Octarine Credit** `CCAFPOL6UJ4Y23SYROA5TABUPG6NN274W5C4Y254VJBJQLBZSP6ASYCX` | tCLO (8.00 / 4.00 · 50% · 30d rolling), tCREDIT (12.00 / 6.00 · 40% · 30d cycle) | Blend v2, DeFindex |
+| **Octarine Diversified** `CDXENRX2N7GWWEGNHNPIOVQMGAJUBHVSSLSWH742WRXWXLPXCJVV2HEY` | tTBILL (3.50 / 1.75 · 40%), tCLO (9.00 / 4.50 · 40%), tCREDIT (13.00 / 6.50 · 30%) | DeFindex |
+| **Octarine LP** (integration run) `CBZV6CC6T4X3P4YDKPTAOS4U4ZLKTWCPNNV6UMRAMZX64RFK4Q3Q3UWE` | ORWA (10.00 / 5.00 · 80% · 30d rolling) | Blend v2, DeFindex |
+
+Vaults, venue adapters and queues for each are under `.facilities` in
+[`deployments/testnet.json`](../deployments/testnet.json).
+`sdk/scripts/deploy-facilities.ts` recreates the set.
 
 ### Tokens
 
@@ -55,6 +62,10 @@ Centrifuge JAAA's NAV on Ethereum.
 | USDC (Blend testnet, `USDC:GATALTGTWIOT6BUDBCZM3Q4OQ4BO2COLOAZ7IYSKPLC2PMSOPPGF5V56`, 7 dp) | `CAQCFVLOBK5GIULPNZRGATJJMIZL5BSP7X5YJVMGCPTUEPFM4AVSRCJU` |
 | XLM (native SAC) | `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` |
 | ORWA, demo RWA (7 dp) | `CBKP74OVRDQT2BA223L6JQTKM2UR55RASIUJ4TKS7JV24B6C4RB56NTO` |
+| tTBILL (testnet T-bill fund, 7 dp) | `CDVPXGVQYKZ2JLYIG5RCTTOXUEOBPQAILZYUVNPBVBMC4DYZCCNFI5IR` |
+| tMMF (testnet money-market fund, 7 dp) | `CD3LVKXRRCQ77ZJ4SVHKTEEU7KJN7GRDOSOGZSFJIENNHFVDT3G7QF6E` |
+| tCLO (testnet AAA CLO, NAV from Centrifuge JAAA, 7 dp) | `CA4LDL4JSACLUPHAILPN4C2SBJIXRLJ2IPMFEVH7QIZ4JJPY3HYLHO45` |
+| tCREDIT (testnet private credit, 7 dp) | `CB7FNDMUYGPCY5KXBQMIVYX2TL3OYKG4WMTILKWJVVYHIY2Y3LS7NK3Q` |
 | OUSD, demo reference stable for settlement (7 dp) | `CBQ3EXUXCUKLUMNZRRF5SNYKPQPCTHXRSTA2WZIO7RLUBSZUV3SNMEIC` |
 
 ### External protocols used (published by each project)
@@ -76,7 +87,7 @@ Two runs cover every contract:
   fixed order, a router-settled quoted bid, a Dutch listing, and refusal of a
   cancelled order.
 - **`sdk/test/testnet.ts`** runs against the real protocols above. The latest
-  run is from 2026-10-19 and passed all 27 checks. Its full log is
+  run is from 2026-10-19 and passed every check (29 as of 2026-10-19); the transactions below are from an earlier passing run and remain on-chain. Its full log is
   [`deployments/testnet-integration.json`](../deployments/testnet-integration.json).
 
 | Flow | Transaction |

@@ -4,7 +4,7 @@ import { Keypair, hash, xdr, scValToNative } from "@stellar/stellar-sdk";
 import { Buffer } from "buffer";
 import {
   ONE, sellQuote, buyQuote, formatUnits, parseUnits, formatRate, rateApr,
-  signOrderHash, facilityLegData, dexLegData, aquariusHopData, Octarine, networks,
+  signOrderHash, horizonSeconds, facilityLegData, dexLegData, aquariusHopData, Octarine, networks,
 } from "../src/index.js";
 
 const DAY = 86_400;
@@ -52,4 +52,12 @@ test("the client resolves published addresses and refuses missing ones", () => {
   assert.equal(sdk.facility(C).options.contractId, C);
   const bare = new Octarine({ network: { rpcUrl: "https://example.org", networkPassphrase: "x" } });
   assert.throws(() => bare.router(), /no router address/);
+});
+
+test("horizons follow the schedule like the contract", () => {
+  assert.equal(horizonSeconds({ mode: { tag: "Rolling" }, rolling_seconds: 600, next_redemption_at: 0n, cycle_seconds: 0 }, 1000), 600);
+  const c = { mode: { tag: "Cyclical" as const }, rolling_seconds: 0, next_redemption_at: 1000n, cycle_seconds: 300 };
+  assert.equal(horizonSeconds(c, 900), 100);
+  assert.equal(horizonSeconds(c, 1000), 300, "at the anchor it rolls a full cycle");
+  assert.equal(horizonSeconds(c, 1250), 50);
 });

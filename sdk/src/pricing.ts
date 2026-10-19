@@ -45,3 +45,14 @@ export function parseUnits(v: string, decimals: number): bigint {
   if (f.length > decimals) throw new Error(`${v} has more than ${decimals} decimals`);
   return BigInt(i || "0") * 10n ** BigInt(decimals) + BigInt(f.padEnd(decimals, "0") || "0");
 }
+
+/** Seconds to the next redemption under a schedule, as the contracts compute it. */
+export function horizonSeconds(
+  s: { mode: { tag: "Rolling" | "Cyclical" }; rolling_seconds: number; next_redemption_at: bigint; cycle_seconds: number },
+  now = Math.floor(Date.now() / 1000),
+): number {
+  if (s.mode.tag === "Rolling") return s.rolling_seconds;
+  let anchor = Number(s.next_redemption_at);
+  if (now >= anchor && s.cycle_seconds > 0) anchor += (Math.floor((now - anchor) / s.cycle_seconds) + 1) * s.cycle_seconds;
+  return Math.max(1, anchor - now);
+}
