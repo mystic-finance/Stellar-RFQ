@@ -1,0 +1,22 @@
+[package]
+name = "dex_aggregator"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Octarine DEX aggregator: standalone swap router with fees, and the RFQ router's Dex source"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+common = { path = "../../../crates/common" }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+mock_dex = { path = "../../mocks/mock_dex" }
+rfq = { path = "../../rfq" }
+router = { path = "../../router" }
+stellar-strkey = "0.0.13"

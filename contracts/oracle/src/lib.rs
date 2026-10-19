@@ -10,12 +10,7 @@ use soroban_sdk::{
 #[cfg(test)]
 mod test;
 
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PriceData {
-    pub price: i128,
-    pub timestamp: u64,
-}
+pub use common::types::PriceData;
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -162,10 +157,11 @@ impl OctarineOracle {
     }
 
     fn mul_div(env: &Env, a: i128, b: i128, d: i128) -> i128 {
-        if d <= 0 {
-            panic_with_error!(env, Error::NoPrice);
+        match common::math::mul_div(env, a, b, d) {
+            Ok(v) => v,
+            Err(common::math::MathError::Domain) => panic_with_error!(env, Error::NoPrice),
+            Err(common::math::MathError::Overflow) => panic_with_error!(env, Error::Overflow),
         }
-        Self::checked(env, a.checked_mul(b)) / d
     }
 
     fn pow10(env: &Env, exp: u32) -> i128 {

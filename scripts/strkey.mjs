@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// Decode a Stellar account address (G...) to the raw 32-byte ed25519 public key
-// in hex. Zero dependencies — used by deploy scripts to pass a BytesN<32> signer
-// key to the contract. Usage: node strkey.mjs GABC...
+// Decode a Stellar strkey to its raw 32 bytes in hex: an account (G...) gives
+// its ed25519 public key, a contract (C...) its contract hash. Zero
+// dependencies — used by scripts to pass a BytesN<32> signer key, or to build
+// an Address's XDR. Usage: node strkey.mjs GABC... | CABC...
 const B32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
 function base32Decode(s) {
@@ -21,8 +22,8 @@ function base32Decode(s) {
 }
 
 const addr = process.argv[2];
-if (!addr || addr[0] !== "G") {
-  console.error("usage: node strkey.mjs G<account-address>");
+if (!addr || !"GC".includes(addr[0])) {
+  console.error("usage: node strkey.mjs G<account-address> | C<contract-address>");
   process.exit(1);
 }
 const decoded = base32Decode(addr); // [version(1)][key(32)][crc(2)]

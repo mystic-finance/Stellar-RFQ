@@ -1,0 +1,21 @@
+[package]
+name = "withdrawal_queue"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "First-come, first-served withdrawal queue for an Octarine facility"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+common = { path = "../../crates/common" }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+facility = { path = "../facility" }
+vault = { path = "../vault" }
+mock_oracle = { path = "../mocks/mock_oracle" }

@@ -14,6 +14,21 @@ source for a trade and settles the winning route atomically, and the **oracle
 adapter**, which reads a SEP-40 feed (Reflector) and republishes it in the price
 convention the settlement contract expects.
 
+Milestone 2 adds the two non-RFQ bid sources the router routes to:
+
+- **Facilities**, through the facility aggregator. A facility is a curated pool
+  issuing oLP that buys and sells RWA at a rate per day. One vault per asset
+  holds the funds, and each vault can lend idle balances to Blend v2, DeFindex
+  or SEP-56 venues.
+- **The DEX aggregator**: adapter routes over Soroswap and Aquarius, or
+  SimpleSwap-style calldata. It is also usable on its own.
+
+It also adds a **push oracle** with a NAV keeper for RWAs that have no market
+feed, and a **TypeScript SDK**. Start with
+[Facilities, vaults and the DEX aggregator](#facilities-vaults-and-the-dex-aggregator),
+the integration guides in [docs/integration](docs/integration/README.md), and
+the testnet addresses in [docs/DEPLOYMENTS.md](docs/DEPLOYMENTS.md).
+
 The code is intentionally comment-light; the reasoning lives here.
 
 ---
@@ -102,6 +117,31 @@ It then rescales by `10^(18 + quote_decimals − base_decimals − feed_decimals
 and traps on a stale or absent price. Any contract exposing
 `get_price(base, quote) -> {price, timestamp}` can be registered instead.
 
+### The push oracle and NAV keeper
+
+Most RWAs have no SEP-40 feed; their price is the issuer's published NAV.
+`contracts/push_oracle` serves prices that privileged **updaters** push:
+
+- `push(caller, base, quote, price, timestamp)`: `caller` is an updater or the
+  admin. `timestamp` is the source's time (the NAV date). It must be newer than
+  the last push and not in the future.
+- An updater may move a price at most `max_deviation_bps` (0 disables the
+  bound). The admin can push any price, to correct an error.
+- `get_price` returns the last push and does not judge freshness. Each
+  consumer does: a facility rejects a price older than the RWA's
+  `max_price_age`.
+
+`keeper/` is the bot that feeds it. The example source is Centrifuge's JAAA
+ERC-4626 vault on Ethereum (`convertToAssets(10^decimals)`), converted into the
+oracle's 1e18 raw-unit convention. The keeper pushes when the price moves at
+least `MIN_CHANGE_BPS` or when `HEARTBEAT_SECONDS` have passed. It refuses a move
+beyond the contract's bound and leaves that move to the admin.
+
+```bash
+cd keeper && npm install
+PUSH_ORACLE=C... KEEPER_SECRET=S... NAV_BASE=C... NAV_QUOTE=C... npm run once
+```
+
 ## The router
 
 The auction does **not** happen on-chain. A taker's request, the LP bids, the
@@ -157,22 +197,26 @@ taker must have approved.
 |---|---|---|---|
 | `Rfq` — quoted bid | the taker | settlement, from the taker's own allowance | **settlement** |
 | `Rfq` — open bid | none | router pulls, then hands it to settlement | **router** |
-| `Dex` / `Facility` | n/a | router pulls, then hands it to the aggregator | **router** |
+| `Dex` | n/a | router pulls, then hands it to the DEX aggregator | **router** |
+| `Facility` | n/a | the facility pulls it **taker → the asset's vault**, under the taker's signature | nothing (signature only) |
 
 So the rule for a frontend is mechanical: **approve settlement if the route
 contains a bid quoted to you; approve the router if it contains an open bid or
-any aggregator quote.** A route with both needs both — each a one-time approval,
+a DEX quote. A facility quote needs no approval, only the signature on the
+route.** A route with both needs both — each a one-time approval,
 and the full set is derivable from the chosen route before anything is signed.
 
 ```
 fill():
   1. validate every leg          ← nothing moves until the whole route is sound
-  2. pull the input for the ROUTER-PAID legs only  (one transfer_from)
+  2. pull the input for the ROUTER-PAID legs (open Rfq, Dex)  (one transfer_from)
   3. per leg:
        Rfq, quoted → call settlement; it pulls from the taker and pays them back
        Rfq, open   → approve settlement for this leg; it pulls from the router
                      and pays the router, which is the taker of record
-       Dex / Fac   → transfer(router → aggregator); the aggregator pays the router
+       Dex         → transfer(router → aggregator); the aggregator pays the router
+       Facility    → no transfer: the facility pulls taker → vault under the
+                     taker's signature; the aggregator pays the router
   4. forward what the router collected, refund anything unspent
   5. measure the TAKER's balance delta and check it against min_out
 ```
@@ -188,7 +232,8 @@ forwarded, in one number.
   third party (`LegTakerMismatch`), so nobody can consume someone else's quote
   by routing it.
 - **A permissioned RWA never has to whitelist the router**, since the token only
-  moves taker → maker. Only the router-paid legs put it in the transfer graph.
+  moves taker → maker. Facility legs keep the same property (taker → vault);
+  only open bids and Dex legs put the router in the transfer graph.
 
 **Why open bids don't need any of that.** An order with no named taker is
 liquidity offered to anyone, so there is no counterparty to bind it to and the
@@ -225,7 +270,7 @@ aggregator leg**, since the legs' amounts are fixed and less input arriving than
 declared is unfulfillable; it reverts with `InputShortfall`. Signed legs are
 unaffected — settlement prices them on what actually arrived.
 
-## Dutch listings## Dutch listings
+## Dutch listings
 
 The only order type that takes custody. The seller escrows the asset on
 `create_dutch_order`; the ask decays linearly from `start_maker_amount` to
@@ -315,6 +360,78 @@ Two, plus a pause switch:
 
 ---
 
+## Facilities, vaults and the DEX aggregator
+
+Full design: [docs/FACILITY_V2_STELLAR.md](docs/FACILITY_V2_STELLAR.md), a port of
+octarine-v2's facility architecture with Octarine's duration pricing.
+
+```
+Octarine router ─┬─ Leg::Rfq ──────▶ settlement (rfq)
+                 ├─ Leg::Dex ──────▶ dex_aggregator ─▶ DEX adapters │ allowlisted routers (calldata)
+                 └─ Leg::Facility ─▶ facility_aggregator ─▶ facility ─┬─ vault(USDC)  ─▶ venue adapters
+                                                                       ├─ vault(RWA A) ─▶ venue adapters
+                                                                       └─ queue
+```
+
+**The facility orchestrates; the vaults hold and allocate.**
+
+- **`vault`** is one asset-agnostic contract, used for the stablecoin and for each RWA.
+  - It issues SEP-56 shares and holds its asset. For a permissioned RWA, the vault is the address the issuer allowlists.
+  - It puts idle funds into venue adapters: Blend, DeFindex, any SEP-56 vault.
+  - Controls:
+    - deposit cap and depositor allowlist;
+    - freeze and seize (manager);
+    - a high-water-mark performance fee.
+  - Fee, cap and new venues are timelocked.
+  - RWA holders can deposit directly.
+- **`facility`** issues **oLP** and holds the vaults' shares.
+  - **NAV** = its USDC-vault position + its RWA-vault positions at each RWA's own oracle + receivables − gain still vesting.
+  - **Trades**, each RWA with its own oracle and redemption schedule:
+    - **RWA → USDC** at `price × (1 − bid_rate × h)`;
+    - **USDC → RWA** at `price × (1 − ask_rate × h)`;
+    - **RWA → RWA** through the base value.
+  - **Caps:** each RWA is capped as a share of NAV (`max_bps`).
+  - **Gain vesting:** the gain against the oracle mark vests linearly over `vest_seconds`, so the share price never jumps at a fill.
+  - **Redemptions:** the manager `book`s and `settle`s; settlement is all-or-nothing. Only the protocol admin can `write_down`.
+  - **Governance:** RWA terms, fees, vesting and the queue are timelocked, and a guardian can revoke. `pending(kind)` shows what is queued, on the facility and on every vault.
+  - **Pause:** the curator or guardian can stop trading at once (`set_paused`). Deposits, exits, the queue and redemptions keep working.
+- **`withdrawal_queue`** holds oLP the facility can't pay out now.
+  - Positions are served first come, first served, at the NAV when served. `process` is permissionless.
+  - The owner can cancel their unserved shares.
+  - The facility reserves the queue's claim against every other exit.
+
+**No token passes through the facility, the router or the aggregators on a
+facility trade.** `facility.trade(payer, recipient, …)` requires the payer's
+own signature. The input goes payer → vault and the output goes vault → recipient.
+A router Facility leg carries a `FacilityRoute { facility, payer }` as its
+`data`, and the router moves nothing itself.
+
+- **`facility_aggregator`**
+  - **Factory:** deploys vaults, facilities and queues from pinned code, and venue adapters from allowlisted code.
+  - **Registry and routing:** lists the facilities that may trade, as a router source and through a standalone `swap`.
+  - **Protocol fee** (≤ 5%), in the base asset:
+    - from the output when selling RWA;
+    - from the input when buying RWA, so it never holds an RWA;
+    - none on RWA ↔ RWA.
+- **`dex_aggregator`** works standalone or as the Dex source, taking protocol and partner fees in both modes:
+  - **Adapter mode:** split/hop routes through allowlisted DEX adapters.
+  - **Calldata mode** (`swap_calls`, SimpleSwap-style): runs off-chain-built calls against **allowlisted routers** only.
+    - A call may pre-authorise only `token_in` transfers from the aggregator, and no more than `amount_in` in total.
+    - It can never call a token directly.
+    - Output is measured, unspent input is refunded, and fees owed are never spent.
+
+**Venue adapters** (`VenueAdapter`: deposit, withdraw, total_assets, max_withdraw), one instance per vault:
+
+| Adapter | Venue | Notes |
+|---|---|---|
+| `sep56` | Any SEP-56 vault | |
+| `blend` | Blend v2 | Plain supply; instant liquidity bounded by utilization |
+| `defindex` | Single-asset DeFindex vault | DeFindex is not SEP-56 |
+
+Templar's markets run on NEAR and can't be reached from Soroban.
+
+**DEX adapters** (`DexAdapter`), shared and holding nothing between calls: `soroswap`, `aquarius` (the pool is named per hop).
+
 ## Layout
 
 ```
@@ -332,17 +449,41 @@ contracts/
       mock_token.rs test-only token that skews what it credits
   router/       RFQ router: multi-source ranking + atomic route settlement
   oracle/       SEP-40 (Reflector) price adapter
+  push_oracle/  Prices pushed by privileged updaters (issuer NAV via the keeper)
+  vault/        One-asset SEP-56 vault: holds its asset, allocates to venue adapters
+  facility/     Orchestrator: issues oLP, trades RWA at bps/day pricing, vests gains
+  queue/        First-come, first-served withdrawal queue for one facility
+  aggregators/
+    facility/     vault factory + registry + router Facility source
+    dex/          standalone swap router + fee collector + router Dex source
+  adapters/
+    soroswap/     DexAdapter over the Soroswap router
+    aquarius/     DexAdapter over Aquarius pools
+    sep56/        VenueAdapter over any SEP-56 vault
+    blend/        VenueAdapter over a Blend v2 pool
+    defindex/     VenueAdapter over a single-asset DeFindex vault
+  mocks/
+    mock_venue/   VenueAdapter test double (tests + testnet demo, never mainnet)
+    mock_dex/     DexAdapter test double (tests only, never mainnet)
+    mock_oracle/  settable price feed (tests + testnet demo, never mainnet)
   test_token/   Minimal Soroban token for tests/demos (no trustlines)
 crates/
   orders/       Order types shared by settlement + router (never deployed)
+  common/       Shared math, schedules, timelock, types, cross-contract interfaces
+  shares/       Share accounting for vault and facility: SEP-41, SEP-56 math, HWM fee
 scripts/
   lib.sh           shared config (networks, helpers)
   00-setup.sh      generate + fund identities (admin/maker/taker)
   01-build.sh      build + optimise the WASMs
   02-deploy.sh     deploy + initialize  (testnet OR mainnet)
   03-seed-demo.sh  testnet-only: demo tokens, balances, schedule, price
+  08-deploy-facility.sh  facility + DEX aggregators, adapter code, router sources
+  09-facility-demo.sh    testnet-only: facility fill through the router, vault-of-vaults
   e2e.sh           run the testnet pipeline end to end
-  strkey.mjs       decode a G... address to a raw ed25519 pubkey
+  strkey.mjs       decode a G.../C... address to its raw 32 bytes
+keeper/         TS bot: reads an issuer NAV (ERC-4626 on Ethereum) and pushes it
+sdk/            TS SDK (@octarine/stellar-sdk): typed clients, auction API, examples, testnet e2e
+docs/           design (FACILITY_V2_STELLAR, TECHNICAL_ARCHITECTURE), DEPLOYMENTS, integration/ guides
 deployments/
   <network>.json            deployed addresses (the hand-off artifact)
   accounts.<network>.json   identity addresses + secrets (git-ignored)
@@ -358,7 +499,7 @@ deployments/
 
 ```bash
 make build      # cargo build (host)
-make test       # unit tests (settlement + oracle)
+make test       # builds the wasm, then every contract's tests
 make wasm       # build + optimise the on-chain WASMs
 ```
 
@@ -384,6 +525,13 @@ Then, testnet only:
 make seed-demo    # ORWA token, balances, maker signing key,
                   # a 30-day rolling schedule and a 1:1 backstop price
 make mint TO=G...address
+```
+
+Milestone 2 contracts, after the above:
+
+```bash
+./scripts/08-deploy-facility.sh   # SOROSWAP_ROUTER=C... and/or AQUARIUS=1 add the DEX adapters
+./scripts/09-facility-demo.sh     # testnet only
 ```
 
 Or the whole pipeline: `make e2e`.

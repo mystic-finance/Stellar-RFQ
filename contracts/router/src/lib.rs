@@ -293,9 +293,10 @@ impl RouterContract {
         let (amount, routed) = match leg {
             Leg::Rfq(l) => Self::validate_signed_leg(env, l, taker, taker_token, maker_token),
             Leg::Dex(l) => (Self::validate_source_leg(env, l, SourceKind::Dex), true),
+            // The facility pulls straight from the payer into the asset's vault.
             Leg::Facility(l) => (
                 Self::validate_source_leg(env, l, SourceKind::Facility),
-                true,
+                false,
             ),
         };
         if amount <= 0 {
@@ -349,9 +350,16 @@ impl RouterContract {
     }
 
     fn execute(env: &Env, me: &Address, taker_token: &Address, maker_token: &Address, leg: &Leg) {
+        let input = token::Client::new(env, taker_token);
         match leg {
             Leg::Rfq(l) => Self::submit(env, l, me, taker_token),
-            Leg::Dex(l) | Leg::Facility(l) => Self::draw(env, l, me, taker_token, maker_token),
+            Leg::Dex(l) => {
+                input.transfer(me, &l.aggregator, &l.taker_amount);
+                Self::draw(env, l, me, taker_token, maker_token);
+            }
+            // The facility pulls the input from the payer its route names,
+            // straight into the asset's vault, under the payer's signature.
+            Leg::Facility(l) => Self::draw(env, l, me, taker_token, maker_token),
         }
     }
 
@@ -399,7 +407,6 @@ impl RouterContract {
     ) {
         let out = token::Client::new(env, maker_token);
         let before = out.balance(me);
-        token::Client::new(env, taker_token).transfer(me, &leg.aggregator, &leg.taker_amount);
         AggregatorClient::new(env, &leg.aggregator).fill(
             me,
             taker_token,

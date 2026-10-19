@@ -1,6 +1,19 @@
 [workspace]
 resolver = "2"
-members = ["contracts/*", "crates/*"]
+members = [
+    "contracts/rfq",
+    "contracts/router",
+    "contracts/oracle",
+    "contracts/push_oracle",
+    "contracts/vault",
+    "contracts/facility",
+    "contracts/queue",
+    "contracts/aggregators/*",
+    "contracts/test_token",
+    "contracts/adapters/*",
+    "contracts/mocks/*",
+    "crates/*",
+]
 
 [workspace.dependencies]
 soroban-sdk = "22"

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Convenience pipeline for a testnet deployment:
-#   identities -> build -> deploy protocol -> seed demo tokens -> oracle -> fills.
+#   identities -> build -> deploy protocol -> seed demo tokens -> oracle -> fills
+#   -> facility and DEX aggregators -> facility demo.
 # Production application/SDK integration lives in the Octarine-UI and
 # mystic-backend projects; 05-fill-demo.sh here is a settlement smoke test.
 source "$(dirname "$0")/lib.sh"
@@ -11,5 +12,7 @@ source "$(dirname "$0")/lib.sh"
 "$SCRIPT_DIR/03-seed-demo.sh"
 "$SCRIPT_DIR/04-oracle.sh"
 "$SCRIPT_DIR/05-fill-demo.sh"
+"$SCRIPT_DIR/08-deploy-facility.sh"
+"$SCRIPT_DIR/09-facility-demo.sh"
 
 log "Done. Deployment artifact: $DEPLOYMENT_FILE"

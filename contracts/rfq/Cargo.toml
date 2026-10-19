@@ -12,6 +12,7 @@ doctest = false
 
 [dependencies]
 soroban-sdk = { workspace = true }
+common = { path = "../../crates/common" }
 orders = { path = "../../crates/orders" }
 
 [dev-dependencies]

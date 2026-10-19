@@ -1,0 +1,20 @@
+[package]
+name = "vault"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Octarine curated SEP-56 vault: liquidity facility or RWA provisioning"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+common = { path = "../../crates/common" }
+shares = { path = "../../crates/shares" }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+mock_venue = { path = "../mocks/mock_venue" }

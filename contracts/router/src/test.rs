@@ -2,6 +2,7 @@ use super::*;
 use ed25519_dalek::{Signer as _, SigningKey};
 use soroban_sdk::testutils::{Address as _, Ledger as _};
 use soroban_sdk::token::{StellarAssetClient, TokenClient};
+use soroban_sdk::xdr::{FromXdr, ToXdr};
 use soroban_sdk::{contract, contractimpl, vec, BytesN};
 
 const HUGE: i128 = 1_000_000_000_000_000;
@@ -33,7 +34,7 @@ impl MockAggregator {
         token_out: Address,
         amount_in: i128,
         _min_amount_out: i128,
-        _data: soroban_sdk::Bytes,
+        data: soroban_sdk::Bytes,
     ) -> i128 {
         let me = env.current_contract_address();
         let held: i128 = env
@@ -41,8 +42,13 @@ impl MockAggregator {
             .instance()
             .get(&symbol_short!("h"))
             .unwrap_or(0);
+        // A facility source pulls the input from the payer its route names.
+        if !data.is_empty() {
+            let r = common::types::FacilityRoute::from_xdr(&env, &data).unwrap();
+            token::Client::new(&env, &token_in).transfer(&r.payer, &me, &amount_in);
+        }
         let arrived = token::Client::new(&env, &token_in).balance(&me) - held;
-        assert!(arrived >= amount_in, "router did not push the input");
+        assert!(arrived >= amount_in, "the input did not arrive");
         env.storage()
             .instance()
             .set(&symbol_short!("h"), &(held + arrived));
@@ -231,7 +237,14 @@ impl Fixture {
             aggregator: at.clone(),
             taker_amount,
             min_maker_amount: min_out,
-            data: soroban_sdk::Bytes::new(&self.env),
+            data: match kind {
+                SourceKind::Facility => common::types::FacilityRoute {
+                    facility: at.clone(),
+                    payer: self.taker.clone(),
+                }
+                .to_xdr(&self.env),
+                _ => soroban_sdk::Bytes::new(&self.env),
+            },
         };
         match kind {
             SourceKind::Dex => Leg::Dex(leg),

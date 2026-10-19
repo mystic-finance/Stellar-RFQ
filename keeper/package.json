@@ -1,0 +1,21 @@
+{
+  "name": "@octarine/price-keeper",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Pushes issuer NAV to an Octarine push oracle on Stellar",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "once": "tsx src/index.ts --once",
+    "test": "tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@stellar/stellar-sdk": "^17.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

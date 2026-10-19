@@ -1,0 +1,21 @@
+[package]
+name = "facility"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Octarine facility: orchestrates trades across its vaults and issues oLP"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+common = { path = "../../crates/common" }
+shares = { path = "../../crates/shares" }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+vault = { path = "../vault" }
+mock_oracle = { path = "../mocks/mock_oracle" }

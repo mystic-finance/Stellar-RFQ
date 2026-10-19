@@ -5,7 +5,7 @@ use soroban_sdk::token::{StellarAssetClient, TokenClient};
 use soroban_sdk::Address;
 
 const BPS_I: i128 = 10_000;
-// Rates carry two decimal places; see price::RATE_SCALE.
+// Rates carry two decimal places; see common::math::RATE_SCALE.
 const RATE_SCALE_I: i128 = 100;
 const DENOM_I: i128 = BPS_I * RATE_SCALE_I * 86_400;
 

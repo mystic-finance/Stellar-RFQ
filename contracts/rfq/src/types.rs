@@ -1,25 +1,7 @@
 use soroban_sdk::{contracttype, Address};
 
+pub use common::types::{PriceData, Schedule, ScheduleMode};
 pub use orders::{FillResult, FixedOrder, OrderType, Request, RfqOrder, Signature};
-
-#[contracttype]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ScheduleMode {
-    Rolling,
-    Cyclical,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Schedule {
-    pub mode: ScheduleMode,
-    pub rolling_seconds: u32,
-    pub next_redemption_at: u64,
-    pub cycle_seconds: u32,
-    /// Rate ceiling for this asset, in hundredths of a basis point per day:
-    /// 1000 is 10.00 bps/day.
-    pub max_bps_per_day: u32,
-}
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -50,13 +32,6 @@ pub struct Quote {
     pub maker_amount: i128,
     pub fee: i128,
     pub horizon_seconds: u32,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PriceData {
-    pub price: i128,
-    pub timestamp: u64,
 }
 
 #[contracttype]

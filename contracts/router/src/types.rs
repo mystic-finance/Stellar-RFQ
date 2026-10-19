@@ -1,5 +1,6 @@
 use soroban_sdk::{contractclient, contracttype, Address, Bytes, Env, Vec};
 
+pub use common::interfaces::{Aggregator, AggregatorClient};
 pub use orders::{FillResult, FixedOrder, RfqOrder, Signature};
 
 #[contractclient(name = "SettlementClient")]
@@ -21,24 +22,6 @@ pub trait Settlement {
         sender: Address,
         taker_amount_in: i128,
     ) -> FillResult;
-}
-
-#[contractclient(name = "AggregatorClient")]
-/// The router transfers `amount_in` to the aggregator before calling `fill`, so
-/// the aggregator never holds an allowance on anyone. `data` is an opaque
-/// aggregator-specific payload carried through untouched.
-pub trait Aggregator {
-    fn quote(env: Env, token_in: Address, token_out: Address, amount_in: i128) -> i128;
-
-    fn fill(
-        env: Env,
-        recipient: Address,
-        token_in: Address,
-        token_out: Address,
-        amount_in: i128,
-        min_amount_out: i128,
-        data: Bytes,
-    ) -> i128;
 }
 
 #[contracttype]
