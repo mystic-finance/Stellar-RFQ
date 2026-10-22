@@ -106,7 +106,7 @@ once, so a stale number denominated in the old reference can never be reused.
 
 ### The oracle adapter
 
-`contracts/oracle` wraps one SEP-40 feed for one pair:
+`contracts/oracles/feed_oracle` wraps one SEP-40 feed for one pair:
 
 - `cross: false` — the feed already quotes in the quote asset.
 - `cross: true` — two `lastprice` legs are divided (e.g. `RWA/USD ÷ XLM/USD`);
@@ -120,7 +120,7 @@ and traps on a stale or absent price. Any contract exposing
 ### The push oracle and NAV keeper
 
 Most RWAs have no SEP-40 feed; their price is the issuer's published NAV.
-`contracts/push_oracle` serves prices that privileged **updaters** push:
+`contracts/oracles/push_oracle` serves prices that privileged **updaters** push:
 
 - `push(caller, base, quote, price, timestamp)`: `caller` is an updater or the
   admin. `timestamp` is the source's time (the NAV date). It must be newer than
@@ -448,8 +448,9 @@ contracts/
       invariant.rs  property tests (rules that hold over randomised sweeps)
       mock_token.rs test-only token that skews what it credits
   router/       RFQ router: multi-source ranking + atomic route settlement
-  oracle/       SEP-40 (Reflector) price adapter
-  push_oracle/  Prices pushed by privileged updaters (issuer NAV via the keeper)
+  oracles/
+    feed_oracle/  SEP-40 (Reflector) price adapter
+    push_oracle/  Prices pushed by privileged updaters (issuer NAV via the keeper)
   vault/        One-asset SEP-56 vault: holds its asset, allocates to venue adapters
   facility/     Orchestrator: issues oLP, trades RWA at bps/day pricing, vests gains
   queue/        First-come, first-served withdrawal queue for one facility

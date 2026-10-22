@@ -65,8 +65,8 @@ QUOTE_ASSET="$(asset_key "$QUOTE" "${QUOTE_SYMBOL:-}")"
 FEED_DECIMALS="$(stellar contract invoke --id "$FEED" --source "$SOURCE" "${NET[@]}" --send=no -- decimals)"
 log "Feed $FEED reports $FEED_DECIMALS decimals"
 
-ORACLE_WASM="$WASM_RELEASE/oracle.optimized.wasm"
-[ -f "$ORACLE_WASM" ] || ORACLE_WASM="$WASM_RELEASE/oracle.wasm"
+ORACLE_WASM="$WASM_RELEASE/feed_oracle.optimized.wasm"
+[ -f "$ORACLE_WASM" ] || ORACLE_WASM="$WASM_RELEASE/feed_oracle.wasm"
 [ -f "$ORACLE_WASM" ] || die "No oracle WASM at $WASM_RELEASE. Build first: ./scripts/01-build.sh"
 
 log "Deploying SEP-40 adapter for $BASE_SYMBOL/$QUOTE_SYMBOL"

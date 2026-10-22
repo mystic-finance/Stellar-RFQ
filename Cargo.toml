@@ -3,8 +3,8 @@ resolver = "2"
 members = [
     "contracts/rfq",
     "contracts/router",
-    "contracts/oracle",
-    "contracts/push_oracle",
+    "contracts/oracles/feed_oracle",
+    "contracts/oracles/push_oracle",
     "contracts/vault",
     "contracts/facility",
     "contracts/queue",

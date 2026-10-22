@@ -1,5 +1,5 @@
 [package]
-name = "oracle"
+name = "feed_oracle"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
@@ -12,7 +12,7 @@ doctest = false
 
 [dependencies]
 soroban-sdk = { workspace = true }
-common = { path = "../../crates/common" }
+common = { path = "../../../crates/common" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
