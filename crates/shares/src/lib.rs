@@ -88,13 +88,18 @@ fn set<T: soroban_sdk::IntoVal<Env, soroban_sdk::Val>>(env: &Env, k: ShareKey, v
 }
 
 pub fn init(env: &Env, asset_decimals: u32, name: String, symbol: String) {
+    init_meta(env, asset_decimals + DECIMALS_OFFSET, name, symbol);
+    set_hwm(env, share_price(env, 0, 0));
+}
+
+/// SEP-41 metadata alone, for a token that is not a vault share.
+pub fn init_meta(env: &Env, decimals: u32, name: String, symbol: String) {
     let meta = Meta {
-        decimals: asset_decimals + DECIMALS_OFFSET,
+        decimals,
         name,
         symbol,
     };
     env.storage().instance().set(&ShareKey::Meta, &meta);
-    set_hwm(env, share_price(env, 0, 0));
 }
 
 pub fn meta(env: &Env) -> Meta {

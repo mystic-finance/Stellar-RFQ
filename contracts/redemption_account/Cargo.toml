@@ -1,0 +1,15 @@
+[package]
+name = "redemption_account"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "A redemption vault's issuer-facing account, run only by its vault"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+common = { path = "../../crates/common" }

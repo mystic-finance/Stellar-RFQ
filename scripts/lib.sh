@@ -90,3 +90,11 @@ json_merge() {
   fi
   mv "$tmp" "$file"
 }
+
+# Build every contract, then crosschain_settle once per bridge: lz_settle.wasm and cctp_settle.wasm.
+build_wasm() {
+  ( cd "$ROOT_DIR" && stellar contract build )
+  cp "$WASM_RELEASE/crosschain_settle.wasm" "$WASM_RELEASE/lz_settle.wasm"
+  ( cd "$ROOT_DIR" && stellar contract build --package crosschain_settle --features cctp )
+  cp "$WASM_RELEASE/crosschain_settle.wasm" "$WASM_RELEASE/cctp_settle.wasm"
+}

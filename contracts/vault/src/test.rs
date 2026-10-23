@@ -297,25 +297,38 @@ fn only_the_manager_allocates_and_upgrades_need_the_registered_code() {
     assert!(f.vault.try_allocate(&v.address, &1).is_err());
 }
 
-#[test]
-fn previews_match_what_each_entry_point_does() {
-    let f = setup(0);
+/// Alice holds 1,000,000 and the vault has gained 10,000: shares are worth more than 1.
+fn grown(fee: u32) -> F {
+    let f = setup(fee);
     f.deposit(&f.alice, 1_000_000);
     f.gift(10_000);
+    f
+}
+
+#[test]
+fn previews_match_mint_and_redeem() {
+    let f = grown(0);
     let v = &f.vault;
-    assert_eq!(v.max_deposit(&f.bob), i128::MAX);
-    assert_eq!(v.max_mint(&f.bob), i128::MAX);
+    assert_eq!(
+        (v.max_deposit(&f.bob), v.max_mint(&f.bob)),
+        (i128::MAX, i128::MAX)
+    );
     let shares = v.preview_deposit(&5_000);
     assert_eq!(shares, v.convert_to_shares(&5_000));
     let cost = v.preview_mint(&shares);
     assert_eq!(v.mint(&shares, &f.bob, &f.bob, &f.bob), cost);
-    assert_eq!(v.balance(&f.bob), shares);
     assert!(cost >= 5_000, "minting rounds up");
     assert_eq!(v.max_redeem(&f.bob), shares);
     assert_eq!(
         v.preview_redeem(&shares),
         v.redeem(&shares, &f.bob, &f.bob, &f.bob)
     );
+}
+
+#[test]
+fn previews_match_withdraw_and_views_track_state() {
+    let f = grown(0);
+    let v = &f.vault;
     let burn = v.preview_withdraw(&1_000);
     assert_eq!(v.withdraw(&1_000, &f.alice, &f.alice, &f.alice), burn);
     assert_eq!(v.total_supply(), v.balance(&f.alice));

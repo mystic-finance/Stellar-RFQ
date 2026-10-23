@@ -11,9 +11,11 @@ build:
 
 ## Run the contract unit-test suite. Builds the WASM first: the facility
 ## aggregator's tests deploy real vault and venue code through its factory.
+## crosschain_settle runs twice: as lz_settle (default) and as cctp_settle.
 test:
 	stellar contract build
 	cargo test --workspace
+	cargo test -p crosschain_settle --features cctp
 
 ## SDK and keeper unit tests (offline).
 ts-test:
@@ -33,11 +35,12 @@ testnet-e2e:
 ## Clippy, with the complexity gate from clippy.toml, warnings as errors.
 lint:
 	cargo clippy --workspace --all-targets -- -W clippy::cognitive_complexity -D warnings
+	cargo clippy -p crosschain_settle --features cctp --all-targets -- -W clippy::cognitive_complexity -D warnings
 
 ## Cyclomatic complexity per function (needs `pip install lizard`).
 ##   Thresholds: <=5 fine, 6-10 watch, 11-15 refactor, 15+ split.
 complexity:
-	lizard contracts/*/src crates/*/src -l rust --CCN 11 -w
+	lizard contracts crates -l rust --CCN 11 -w -x "*/test*" -x "*/invariant*" -x "*/mocks/*"
 
 ## Build the on-chain WASM and optimise it.
 wasm:

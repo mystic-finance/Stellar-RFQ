@@ -1,5 +1,5 @@
 use crate::types::PriceData;
-use soroban_sdk::{contractclient, Address, Bytes, BytesN, Env};
+use soroban_sdk::{contractclient, Address, Bytes, BytesN, Env, Symbol, Val, Vec};
 
 /// What a vault needs from the facility aggregator that deployed it. Only a
 /// vault the aggregator deployed may call `deploy_adapter`.
@@ -78,4 +78,40 @@ pub trait DexAdapter {
 #[contractclient(name = "OracleClient")]
 pub trait Oracle {
     fn get_price(env: Env, base: Address, quote: Address) -> PriceData;
+}
+
+/// Who may hold a claim token on `rwa`: typically the RWA's own holder allowlist.
+#[contractclient(name = "GateClient")]
+pub trait Gate {
+    fn can_hold(env: Env, rwa: Address, account: Address) -> bool;
+}
+
+/// An allowlist of calls `caller` may have its `account` make.
+#[contractclient(name = "CallVerifierClient")]
+pub trait CallVerifier {
+    fn verify(
+        env: Env,
+        caller: Address,
+        account: Address,
+        target: Address,
+        func: Symbol,
+        args: Vec<Val>,
+    ) -> bool;
+}
+
+/// A redemption vault's issuer-facing account. Only its vault may call it.
+#[contractclient(name = "AccountClient")]
+pub trait RedemptionAccount {
+    fn execute(env: Env, target: Address, func: Symbol, args: Vec<Val>) -> Val;
+    fn approve(env: Env, token: Address, spender: Address, amount: i128);
+    fn sweep(env: Env, token: Address, to: Address) -> i128;
+}
+
+/// A redemption batch's claim token, beyond SEP-41: only its vault mints and burns.
+#[contractclient(name = "ClaimTokenClient")]
+pub trait ClaimToken {
+    fn mint(env: Env, to: Address, amount: i128);
+    fn burn_claim(env: Env, from: Address, amount: i128);
+    fn set_gate(env: Env, gate: Option<Address>);
+    fn total_supply(env: Env) -> i128;
 }

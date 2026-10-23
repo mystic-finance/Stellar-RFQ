@@ -4,7 +4,8 @@
 //! parameters it governs. Revoking is immediate; granting waits `delay`.
 
 use soroban_sdk::{
-    contracterror, contracttype, panic_with_error, Address, Env, IntoVal, TryFromVal, Val,
+    contracterror, contracttype, panic_with_error, xdr::ToXdr, Address, Env, IntoVal, TryFromVal,
+    Val,
 };
 
 #[contracterror]
@@ -43,6 +44,13 @@ pub fn guardian(env: &Env) -> Address {
         .instance()
         .get(&TimelockKey::Guardian)
         .unwrap()
+}
+
+/// The kind for changes to `key`, so changes to different keys queue apart.
+/// The high bit is set, leaving small kinds for a contract's fixed slots.
+pub fn kind_of<K: IntoVal<Env, Val>>(env: &Env, key: K) -> u32 {
+    let h = env.crypto().sha256(&key.to_xdr(env)).to_array();
+    u32::from_be_bytes([h[0], h[1], h[2], h[3]]) | 0x8000_0000
 }
 
 /// Queues `change` under `kind`, replacing any pending change of that kind.

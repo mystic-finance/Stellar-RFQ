@@ -1,0 +1,20 @@
+[package]
+name = "redemption_vault"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Batched RWA redemption with a tradeable claim token per batch, AUTO through verified calls or MANUAL through an operator"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+common = { path = "../../crates/common" }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+call_verifier = { path = "../call_verifier" }
+mock_oracle = { path = "../mocks/mock_oracle" }

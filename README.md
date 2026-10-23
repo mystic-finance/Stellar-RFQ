@@ -451,6 +451,12 @@ contracts/
   oracles/
     feed_oracle/  SEP-40 (Reflector) price adapter
     push_oracle/  Prices pushed by privileged updaters (issuer NAV via the keeper)
+  crosschain_settle/  Cross-chain RFQ fills, one wasm per bridge: lz_settle (LayerZero + OFT), cctp_settle (CCTP V2)
+  verifier/           Checks an ed25519 signature so a bad one can be caught (cross-chain bids)
+  redemption_vault/   Batched RWA redemption: a tradeable claim token per batch, AUTO (verified calls) or MANUAL (operator)
+  claim_token/        A batch's claim token (SEP-41), deployed by its redemption vault
+  redemption_account/ Issuer-facing account a redemption vault sends a batch from
+  call_verifier/      Allowlist of the issuer calls a redemption vault may make
   vault/        One-asset SEP-56 vault: holds its asset, allocates to venue adapters
   facility/     Orchestrator: issues oLP, trades RWA at bps/day pricing, vests gains
   queue/        First-come, first-served withdrawal queue for one facility
@@ -484,7 +490,7 @@ scripts/
   strkey.mjs       decode a G.../C... address to its raw 32 bytes
 keeper/         TS bot: reads an issuer NAV (ERC-4626 on Ethereum) and pushes it
 sdk/            TS SDK (@octarine/stellar-sdk): typed clients, auction API, examples, testnet e2e
-docs/           design (FACILITY_V2_STELLAR, TECHNICAL_ARCHITECTURE), DEPLOYMENTS, integration/ guides
+docs/           design (FACILITY_V2_STELLAR, CROSSCHAIN_SETTLEMENT, TECHNICAL_ARCHITECTURE), DEPLOYMENTS, integration/ guides
 deployments/
   <network>.json            deployed addresses (the hand-off artifact)
   accounts.<network>.json   identity addresses + secrets (git-ignored)

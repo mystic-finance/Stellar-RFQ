@@ -1,0 +1,16 @@
+[package]
+name = "claim_token"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "A redemption batch's claim token: SEP-41, minted and burned by its vault"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+common = { path = "../../crates/common" }
+shares = { path = "../../crates/shares" }
