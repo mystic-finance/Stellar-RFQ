@@ -74,21 +74,62 @@ Done on testnet, against the live Blend v2 pool and DeFindex USDC vault:
 - **Integration docs.** These cover market makers, takers and routing,
   curators, and oracle operators.
 
+**4. Cross-chain RFQ settlement (Stellar ↔ EVM).** A taker on Stellar sells an RWA to a maker on
+an EVM chain (or the reverse) in one RFQ fill. There is one settle contract per bridge, and
+off-chain picks which to use by token and chains:
+
+- **CCTP** (`cctp_settle` / `CctpSettle`): FILL and FAIL travel as CCTP messages and the payment as
+  a CCTP USDC burn. CCTP has no executor, so the second leg is relayed by whoever is paid to: the
+  maker's keeper relays FILL, the taker relays FAIL, and anyone `complete`s the payment for a flat
+  tip.
+- **LayerZero** (`lz_settle` / `LzSettle`): LayerZero messages and OFT payments (USDT0).
+- **Delivery modes:** the RWA is delivered on the taker's chain (DELIVER); redeemed through the
+  redemption vault into a tradeable claim token (REDEEM_CT); redeemed with the USDC pushed to the
+  maker's chain (REDEEM_PUSH); or bridged to the maker's chain where a bridge carries the RWA
+  (CROSS_DELIVER).
+- **Redemption vault:** batches RWA redemptions with the issuer, issues a tradeable claim token per
+  batch, and runs in AUTO mode (verified issuer calls from per-batch redemption accounts) or MANUAL
+  mode (a timelocked operator redeems off-chain against a NAV floor).
+- **Governance:** every config, peer, route and vault change waits out a timelock a guardian can veto.
+- **App and API:** in the Octarine UI a taker turns on "Allow cross-chain" and the auction opens to
+  makers on the paired chains, on the same auction board. Each maker picks the chain it bids from (its
+  USDC is pulled there; the backend picks that pair's bridge), names where the RWA lands, approves, and
+  signs. A status panel shows each leg (fill, Circle attestation, payment,
+  settlement) and gives each party its button: the maker relays the fill, anyone completes the
+  payment for the tip, and the taker takes the RWA back if the trade fails. The Octarine backend
+  builds and verifies requests, bids and every transaction, and tracks the trade through Circle's
+  attestation API.
+
+Done on testnet, against the real Circle CCTP V2 and LayerZero V2 contracts:
+
+- a Stellar taker sold tTBILL to a Sepolia maker for USDC: the fill on Stellar, the relay on Sepolia
+  (the maker's USDC burned back), and the `complete` on Stellar that paid the taker, the fee, the
+  relayer's tip and delivered the RWA;
+- forked-state tests against both chains' live bridge contracts, including USDT0 on an Ethereum
+  mainnet fork.
+
 ## Deliverable Verification
 
+- **Live transactions for every flow above**, run on 2026-10-30 on Stellar testnet and Sepolia, including
+  each cross-chain delivery mode and the failure path: [`docs/DEMO_TRANSACTIONS.md`](DEMO_TRANSACTIONS.md).
 - **Addresses and transaction hashes for every flow above:**
   [`docs/DEPLOYMENTS.md`](DEPLOYMENTS.md). The machine-readable run log is
   [`deployments/testnet-integration.json`](../deployments/testnet-integration.json).
 - **Integration docs:** [`docs/integration`](integration/README.md).
-- **Tests:** 138 contract tests, at 92.8% line coverage (`cargo llvm-cov`,
-  excluding tests and mocks). On top of those:
+- **Tests:** 196 contract tests (175 in the workspace plus 21 for the CCTP build of the
+  cross-chain contract), at 90.9% line coverage (`make coverage`, excluding tests and mocks;
+  contracts only loaded as wasm, such as the claim token, do not register). On top of those:
   - offline SDK and keeper tests;
   - the end-to-end testnet run `sdk/test/testnet.ts`, against Soroswap,
     Aquarius, Blend v2, DeFindex and the push oracle.
+  - 18 forked-state tests (`e2e/`, `scripts/fork-test.sh`) running the cross-chain contracts against
+    a snapshot of Stellar testnet's live CCTP and LayerZero contracts, and the EVM side's fork suites
+    against Sepolia and Ethereum mainnet (`octarine-v2`, `test/fork`).
 
 **Repositories:**
 
 - contracts, SDK and keeper: [`stellar-rfq`](https://github.com/mystic-finance/Stellar-RFQ)
   (branch `milestone-2`);
+- EVM side of cross-chain settlement: `octarine-v2` (branch `new-v2`, `src/octarine-rfq/crosschain`);
 - frontend: [`Octarine-UI`](https://github.com/mystic-finance/Octarine-UI)
-  (branch `facility-console`).
+  (branch `stellar-facility-console`).

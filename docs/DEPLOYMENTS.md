@@ -81,39 +81,41 @@ Vaults, venue adapters and queues for each are under `.facilities` in
 
 ## Cross-chain settlement: Stellar testnet ↔ Ethereum Sepolia
 
-Deployed 2026-10-23 against the real Circle CCTP V2 and LayerZero V2 contracts on both chains:
+Deployed 2026-10-30, from the committed code (including CROSS_DELIVER), against the real Circle CCTP V2 and LayerZero V2 contracts on both chains:
 one settle contract per bridge, and off-chain picks which one to call by token and chains. See
 [CROSSCHAIN_SETTLEMENT.md](CROSSCHAIN_SETTLEMENT.md). Testnet only: the governance delay is 0,
 and the Sepolia RWA is priced by a mock oracle.
 
 | Bridge | Stellar (`rfq-admin` admin) | Sepolia (`0xCfb24D0cd266F6a8C8F7D2833AB7AbAc831445b9` admin) | Chain ids | Tokens |
 |---|---|---|---|---|
-| CCTP: messages and USDC burns | `cctp_settle` `CCKV3CH6DXVTISCVJELPE6F3SFKCVVGMXKV2K4VWCJF7D5KG73KUOR4D` | `CctpSettle` `0x064b7fc61dd9563bffbdf943fc193bea71a5e3d8` | CCTP domains: Stellar 27, Sepolia 0 | USDC |
-| LayerZero: messages and OFT payments | `lz_settle` `CBYDWHKIMK66CIVJ2OVURRI74XDHEH24E66FMXR7JPZAUZAHBLARBEGG` | `LzSettle` `0x82e25d0b7390906647849d778d9f9b6307704fea` | EIDs: Stellar 40600, Sepolia 40161 | none on testnet (no USDT0) |
+| CCTP: messages and USDC burns | `cctp_settle` `CD7UQ4NZOCIYXL55V2CAZG2SWSGEBWY6VNH6SJOOCSYMNXKGTOWMXF6Q` | `CctpSettle` `0xcef519e9f5fdb966bef637662c59fc4de8a7aeec` | CCTP domains: Stellar 27, Sepolia 0 | USDC |
+| LayerZero: messages and OFT payments | `lz_settle` `CBL26ORBAF7SIWUBDODU2VP2MPVUUQJC4ZD63M4HOANXA3IBPGSOSGT4` | `LzSettle` `0x0be89dc57a2cf9158f6706559be78ee016c40ec2` | EIDs: Stellar 40600, Sepolia 40161 | none on testnet (no USDT0) |
 
-**CCTP:** tip 0.50 USDC on Stellar and 0.10 USDC on Sepolia, paid to whoever `complete`s a
+**CCTP:** tip 0.50 USDC on both chains (Sepolia raised from 0.10 by `setTip(500000)`,
+`0x4ce849e5d77c857149c046337ee5b37e2a78eab9c6d60396fa18be44ff807b8f`), paid to whoever `complete`s a
 payment; no return fee. **LayerZero:** tip 0; Stellar → Sepolia options
 `0x000301001101000000000000000000000000000f4240` (lzReceive, 1M gas) and return fee 1 XLM;
 Sepolia → Stellar options `0x00030100110100000000000000000000000000030d40` and return fee 0.001
 ETH; Stellar uses the LayerZero Labs DVN. With no OFT on testnet, `lz_settle` and `LzSettle` open
 no route, so a fill through them is refused (`NoRoute`); the USDT0 path is covered by the
-mainnet-fork tests. The deployed Stellar contracts predate CROSS_DELIVER (delivery 3) and the
-per-token `bridge.ofts` config; no RWA OFT exists on testnet anyway, so a redeploy would refuse it
-too.
+mainnet-fork tests. CROSS_DELIVER (delivery 3) is deployed but refused on both pairs: CCTP never
+carries an RWA, and no RWA has an OFT on testnet (`lz_settle`'s `bridge.ofts` is empty).
 
 ### Supporting contracts
 
 | Chain | Contract | Address | Notes |
 |---|---|---|---|
-| Stellar | RFQ (`rfq`) | `CB2WQHSH4JJZ6QYULRVR2HOYKMISP7HZT4OPFKZO3QYZFSI72JJON7QO` | reference Circle USDC; tTBILL pushed at 1.00 (30-day max age), 30-day rolling schedule |
-| Stellar | Signature verifier | `CBVFZBSVYNT3ASKKLAI737AZ33XY5GIFQFCXSF7KDZK2UKFUVWXFXQBV` | |
+| Stellar | RFQ (`rfq`) | `CDW5LYC5R322MVDSQSOKQR2UDHSA4OOLQ7IFJMNDF3NKEWC3B4MHBB2Y` | reference Circle USDC; tTBILL pushed at 1.00 (30-day max age), 30-day rolling schedule |
+| Stellar | Signature verifier | `CDIYQKIL4CVQQHDHQRHALHMLDPX7XDRLKXKJMRXN5U4I4CJFUJLQBJOM` | |
+| Stellar | Redemption vault (tTBILL → Circle USDC) | `CDR5AR3SKI5Q5F2NUKN4OYK5ZWGJNWQG4KSS6ZCFI7E3KSE7KDYVXOUH` | MANUAL mode, fee 10 bps, NAV floor 50 bps, NAV from the push oracle; registered on `cctp_settle` for REDEEM_CT / REDEEM_PUSH |
+| Stellar | Call verifier | `CCHTTP5HYHSKXXYQJH3UJTKJXTQ2PEHZNUP7GD3FVVBU3J62MDXOZLZK` | the vault's allowlisted issuer call (AUTO mode) |
 | Stellar | RWA: tTBILL | `CDVPXGVQYKZ2JLYIG5RCTTOXUEOBPQAILZYUVNPBVBMC4DYZCCNFI5IR` | 7 decimals |
 | Stellar | USDC (Circle) | `CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA` | `USDC:GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5`, 7 decimals |
 | Stellar | CCTP TokenMessengerMinter / MessageTransmitter | `CDNG7HXAPBWICI2E3AUBP3YZWZELJLYSB6F5CC7WLDTLTHVM74SLRTHP` / `CBJ6MTCKKZG73PMDZCJMSFRD7DQEMI4FKDH7CGDSV4W6FHCRBCQAVVJY` | Circle |
 | Stellar | LayerZero EndpointV2 / ULN302 | `CALTBA5S6GRJEHAXFP45LGGLKWWAF7HTZCPNUBUJF2HWWRRLQNV35AIV` / `CCMLPCAWCPIIMXOHJJKU3NZLOFTT2O6QTB2UUFPN6SEHLK35QRHVKKMB` | |
-| Sepolia | RFQ (`OctarineRFQ`) | `0x8069f8e4e06afc9a291982e48aa96416dc69ffc7` | reference USDC |
-| Sepolia | RWA: tACRED (test ERC-20, open `mint`) | `0x288495aa4de706d62ecab9141cd7d5f78a8d0a52` | 18 decimals |
-| Sepolia | tACRED oracle (mock, open `setPrice`) | `0x4edf024cbd95776ff5160e444ae21a6dc66893d6` | 1.00 USDC, max age 365 days |
+| Sepolia | RFQ (`OctarineRFQ`) | `0x2dbc020f5fd1a6833ab2133102eb443916512626` | reference USDC |
+| Sepolia | RWA: tACRED (test ERC-20, open `mint`) | `0xb5487cd078f80591c50a9d7e1cc6d1a88a4cbdc9` | 18 decimals |
+| Sepolia | tACRED oracle (mock, open `setPrice`) | `0x845b8c2e6460508e0d49921a4025acc4f2fa8653` | 1.00 USDC, max age 365 days |
 | Sepolia | USDC (Circle) | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` | 6 decimals |
 | Sepolia | CCTP TokenMessengerV2 / MessageTransmitterV2 | `0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA` / `0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275` | Circle |
 | Sepolia | LayerZero EndpointV2 | `0x6EDCE65403992e310A62460808c4b910D972f10f` | default libraries |
@@ -123,9 +125,15 @@ under `.crosschain` in `deployments/testnet.json`) and `octarine-v2/script/Deplo
 
 ### Live runs
 
+The full set from 2026-10-30, covering every delivery mode and the failure path, is in
+[DEMO_TRANSACTIONS.md](DEMO_TRANSACTIONS.md).
+
 | Run | Route | Steps |
 |---|---|---|
-| 2026-10-23, CCTP only | Stellar taker sells 10 tTBILL to a Sepolia maker for 9.925 USDC | fill on Stellar `9a31bc35bf2f506bf82f21c242a0cbea06892b1bcecf5cda9823e8c871d09e0d` (FILL as a CCTP message, attested in seconds) → maker's keeper relays it on Sepolia via `receiveMessage` `0xab9517752e76123a2a4eb6e219f8f4a5b741d3368ec24b618ae449b141728a76` (447k gas; maker's USDC burned home with PAID) → relayer `complete`s on Stellar `a540b314fe7da5dd1972f6863f3e25837a6069bfceaaa0bb37c08701af085f81`: taker +9.415075 USDC, fee 0.009925, tip 0.50, recipient +10 tTBILL |
+| 2026-10-30, reverse direction, through the API | Sepolia taker sells 10 tACRED to a Stellar maker for 9.925 USDC | Stellar maker approves `0eb1562af8d596a265e08e4315eaccfe9325d02df61b0560a9d9fdbecc795044` and signs SEP-53; taker approve + fill on Sepolia `0x797751d7913b2068933c5916c36beb86e1c9f741e1f7d465118baaa9de682b85` → after Sepolia finality (~18 min) the maker relays on Stellar: `receive_message` `40f9c8a7dd8a08684249355ed1422cf8c20a58216a87122165e51b60f6e4ec7d` then `execute` `936445d7facd6c6b477c49ebbcb9f28ecc95e5dff6598b98e6ff54a95558e9a4` (USDC burned to Sepolia, attested in ~20 s) → taker `complete` on Sepolia `0xa6fa9ca50357e4312eda339dd8bde0fcc791188356645802558c535091f49929` (SETTLED): taker +9.925 USDC (fee 0.009925 out, kept the 0.10 tip), maker −9.925 USDC |
+| 2026-10-30, through the Octarine backend API (the calls the UI makes) | Stellar taker sells 10 tTBILL to a Sepolia maker; request, bid, fill, relay and `complete` all built by the API | maker bid via `/bid/quote` + EIP-712 + `/bid`; taker fill on Stellar `00d8efdd894e278c89c953f5a89e0a255c36114700375a3065c628f32fc02912` → maker relay on Sepolia `0x6fb66f87fab63938998ac25471bde1943b24599ab36c9c1e69d81a210bf660a1` → taker `complete` on Stellar `3b04ced6e9be35e0649a80e51bc95cb6c43a0452ca69f5ce220ffd6bb74e33ac` (SETTLED): taker +9.915075 USDC (kept the tip), recipient +10 tTBILL, maker −9.925 USDC |
+| 2026-10-30, CCTP only, this deployment | Stellar taker sells 10 tTBILL to a Sepolia maker for 9.925 USDC | fill on Stellar `0c28aa699810315cd099f82526e9ece66412e85d5277992ab19b97f85a45beb8` (FILL as a CCTP message, attested in seconds) → maker's keeper relays it on Sepolia via `receiveMessage` `0xbd72aba0383ef15fb3ee2412287ff4a7dc01795b39a0caca9bc280ae9c26c0b5` (447k gas; maker's USDC burned home with PAID) → relayer `complete`s on Stellar `4ca70146f93a87e263a994ec990a9f7d0a96629d0ce092322742c635619eb880`: taker +9.415075 USDC, fee 0.009925, tip 0.50, recipient +10 tTBILL |
+| 2026-10-23, CCTP only (previous deployment `cctp_settle` `CCKV3…OR4D` ↔ `CctpSettle` `0x064b…e3d8`) | Stellar taker sells 10 tTBILL to a Sepolia maker for 9.925 USDC | fill on Stellar `9a31bc35bf2f506bf82f21c242a0cbea06892b1bcecf5cda9823e8c871d09e0d` (FILL as a CCTP message, attested in seconds) → maker's keeper relays it on Sepolia via `receiveMessage` `0xab9517752e76123a2a4eb6e219f8f4a5b741d3368ec24b618ae449b141728a76` (447k gas; maker's USDC burned home with PAID) → relayer `complete`s on Stellar `a540b314fe7da5dd1972f6863f3e25837a6069bfceaaa0bb37c08701af085f81`: taker +9.415075 USDC, fee 0.009925, tip 0.50, recipient +10 tTBILL |
 | 2026-10-23, pre-split (retired `crosschain_settle` `CB7UMN…5MW` ↔ `LzSettle` `0x9DE7…8035`) | same trade, FILL over LayerZero, USDC over CCTP | fill `236d5e5bc21f93c4cd3c1eb8cbff1f201ae361f57a96492823f7f7b3d2b19ce0` → executor simulation reverted `LowGas()` at 200k gas; re-executed via `EndpointV2.lzReceive` `0x4fd17e9b6628596c13607d83ac2bf162cc5cb1aedee715688b2a1ce1bfde4349` → `complete` `fc59f9d6eeeb039de9b6ed293914748bf8f51dfda812bf52a9ce75404795cf7b` |
 
 ### Deployment gotchas
@@ -148,7 +156,7 @@ under `.crosschain` in `deployments/testnet.json`) and `octarine-v2/script/Deplo
 ### Testing it by hand: the CCTP route, a Stellar taker and a Sepolia maker
 
 1. **Maker (Sepolia)** approves `CctpSettle` for USDC:
-   `cast send 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238 "approve(address,uint256)" 0x064b7fc61dd9563bffbdf943fc193bea71a5e3d8 <amount> --private-key $EVM_PRIVATE_KEY -r $SEPOLIA_RPC_URL`.
+   `cast send 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238 "approve(address,uint256)" 0xcef519e9f5fdb966bef637662c59fc4de8a7aeec <amount> --private-key $EVM_PRIVATE_KEY -r $SEPOLIA_RPC_URL`.
 2. **Request (Stellar):** `maker_token` Stellar USDC, `taker_token` tTBILL, `sender`
    `cctp_settle`, `taker` the taker, `order_type` `Rfq`; its id is `rfq.hash_request(request)`.
 3. **Bid:** `maker` and `stable` are the maker's address and Sepolia USDC as 32-byte words;
