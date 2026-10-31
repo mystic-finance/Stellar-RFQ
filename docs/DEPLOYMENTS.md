@@ -35,7 +35,7 @@ and keeper: `GBH2FDJQSROZAOIWBCBAYPSPTXPV2TUQAIWF5IISC3DRWEV6Z24R3PN2`.
 
 ### Live facilities
 
-Five facilities are routable from the router: four over Blend's testnet USDC
+Six facilities are routable from the router: five over Blend's testnet USDC
 and one over Circle USDC. Every RWA is priced by
 the push oracle:
 
@@ -53,6 +53,7 @@ on-chain.
 | **Octarine Credit** `CCAFPOL6UJ4Y23SYROA5TABUPG6NN274W5C4Y254VJBJQLBZSP6ASYCX` | tCLO (8.00 / 4.00 · 50% · 30d rolling), tCREDIT (12.00 / 6.00 · 40% · 30d cycle) | Blend v2, DeFindex |
 | **Octarine Diversified** `CDXENRX2N7GWWEGNHNPIOVQMGAJUBHVSSLSWH742WRXWXLPXCJVV2HEY` | tTBILL (3.50 / 1.75 · 40%), tCLO (9.00 / 4.50 · 40%), tCREDIT (13.00 / 6.50 · 30%) | DeFindex |
 | **Octarine LP** (integration run) `CBZV6CC6T4X3P4YDKPTAOS4U4ZLKTWCPNNV6UMRAMZX64RFK4Q3Q3UWE` | ORWA (10.00 / 5.00 · 80% · 30d rolling) | Blend v2, DeFindex |
+| **Octarine LP** (integration rerun, [demo transactions](DEMO_TRANSACTIONS.md#4-liquidity-facility-lifecycle)) `CB7HJZAUK2P2KU42WT2RCKNLXZHXERSRS3PYQRCWMNPK3DKHIRIZ5VWY` | ORWA (10.00 / 5.00 · 80% · 30d rolling) | Blend v2, DeFindex |
 | **Octarine Circle Treasury** (Circle USDC) `CASN7RP3HD4YGU62K4BLVMZJ5FUZDR72V2NTLF2LCZRPQKHO4BCL5LRO` | tTBILL (3.00 / 1.50 · 60% · 7d rolling), tMMF (1.50 / 0.50 · 60% · 1d rolling) | mock venue (testnet) |
 
 Vaults, venue adapters and queues for each are under `.facilities` in
@@ -76,15 +77,25 @@ Vaults, venue adapters and queues for each are under `.facilities` in
 ### Faucet
 
 `contracts/faucet`, deployed 2026-10-31 at
-`CBJGPHWCKPRGV2MK6HGBRCLDJ7U6ZCO3W4IQYZYJSRC2PRUYWO7B64G4`, admin
+`CB5WUVEJ47DH5HSTKYF4AORHMBHWDL574LGYCS4QMJLYXKAWIRTUUEXF`, admin
 `GBH2FDJQSROZAOIWBCBAYPSPTXPV2TUQAIWF5IISC3DRWEV6Z24R3PN2`. Anyone can call
-`claim(to)` (signed by `to`) once per hour and receives 1,000 of each token
-below from the faucet's own stock. A token whose stock is below its drip is
-skipped. Each token was stocked with 1,000,000. Circle USDC is not included:
-get it from `faucet.circle.com`.
+`claim(to)` (signed by `to`) once per hour and receives one drip of each token
+below from the faucet's own stock. A token is skipped when its stock is below
+its drip or it cannot reach the claimant. The two USDCs are classic assets, so
+a claim includes them only once the account holds their trustlines. The UI
+faucet adds both trustlines in one click. Admin `upgrade(wasm_hash)` replaces
+the code in place.
+
+The test tokens were stocked with 1,000,000 each. The faucet also holds 48,000
+Circle USDC and 4,500 Blend USDC, bought on the testnet DEX for XLM or claimed
+from Blend's faucet (`testnet.blend.capital`, 1,000 USDC per new account). The
+first faucet, `CBJGPHWCKPRGV2MK6HGBRCLDJ7U6ZCO3W4IQYZYJSRC2PRUYWO7B64G4`,
+handed out test tokens only and is retired.
 
 | Token | Address | Drip |
 |---|---|---|
+| USDC (Circle) | `CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA` | 100 |
+| USDC (Blend testnet) | `CAQCFVLOBK5GIULPNZRGATJJMIZL5BSP7X5YJVMGCPTUEPFM4AVSRCJU` | 50 |
 | mUSDC | `CBHHOLNFBQSZ7TJ4TE3UFF43HJ4XSBLU6AXDIC5K73Z4TZUQSUCNA7PC` | 1,000 |
 | mRWA | `CCVU3HJIL4EZ2C3RT5ICQ7LAZ3IIF3TRKYBW72HD7JINH2IUD2PDRDD7` | 1,000 |
 | mXLM | `CBOOCLAKDO4J3EDXLVZJ3EKSCIKGQ5NFYOEYNXPQTHSECTJWB26KA7M3` | 1,000 |

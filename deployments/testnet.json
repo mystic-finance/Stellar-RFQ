@@ -164,10 +164,22 @@
     }
   },
   "faucet": {
-    "address": "CBJGPHWCKPRGV2MK6HGBRCLDJ7U6ZCO3W4IQYZYJSRC2PRUYWO7B64G4",
+    "address": "CB5WUVEJ47DH5HSTKYF4AORHMBHWDL574LGYCS4QMJLYXKAWIRTUUEXF",
     "admin": "GBH2FDJQSROZAOIWBCBAYPSPTXPV2TUQAIWF5IISC3DRWEV6Z24R3PN2",
     "cooldown": 3600,
     "tokens": [
+      {
+        "symbol": "USDC (Circle)",
+        "address": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+        "decimals": 7,
+        "drip": "1000000000"
+      },
+      {
+        "symbol": "USDC (Blend testnet)",
+        "address": "CAQCFVLOBK5GIULPNZRGATJJMIZL5BSP7X5YJVMGCPTUEPFM4AVSRCJU",
+        "decimals": 7,
+        "drip": "500000000"
+      },
       {
         "symbol": "mUSDC",
         "address": "CBHHOLNFBQSZ7TJ4TE3UFF43HJ4XSBLU6AXDIC5K73Z4TZUQSUCNA7PC",

@@ -1,5 +1,5 @@
 use super::*;
-use soroban_sdk::testutils::{Address as _, Ledger};
+use soroban_sdk::testutils::{Address as _, IssuerFlags, Ledger};
 use soroban_sdk::token::{StellarAssetClient, TokenClient};
 use soroban_sdk::IntoVal;
 
@@ -114,6 +114,25 @@ fn a_token_short_of_its_drip_is_skipped() {
     let user = Address::generate(&empty.env);
     assert_eq!(empty.faucet.claim(&user), Vec::new(&empty.env));
     assert_eq!(empty.faucet.time_until_next_claim(&user), 3_600);
+}
+
+#[test]
+fn a_token_that_cannot_reach_the_claimant_is_skipped() {
+    let f = setup();
+    f.stock(&f.a, 10_000);
+    // A revocable asset that will not credit the claimant stands in for a
+    // classic asset they hold no trustline for.
+    let sac = f.env.register_stellar_asset_contract_v2(Address::generate(&f.env));
+    sac.issuer().set_flag(IssuerFlags::RevocableFlag);
+    let c = sac.address();
+    f.faucet.set_drip(&c, &5);
+    f.stock(&c, 100);
+    let user = Address::generate(&f.env);
+    StellarAssetClient::new(&f.env, &c).set_authorized(&user, &false);
+
+    assert_eq!(f.faucet.claim(&user), vec![&f.env, (f.a.clone(), 1_000)]);
+    assert_eq!(f.bal(&c, &f.faucet.address), 100);
+    assert_eq!(f.bal(&f.a, &user), 1_000);
 }
 
 #[test]
