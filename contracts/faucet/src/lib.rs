@@ -1,7 +1,8 @@
 #![no_std]
 //! Testnet faucet. Holds a pre-minted stock of each test token and hands out
 //! a fixed drip of every listed token per claim, at most once per cooldown
-//! per address. A token whose stock is below its drip is skipped, so one empty
+//! per address. A token whose stock is below its drip, or that cannot reach the
+//! claimant (a classic asset they hold no trustline for), is skipped, so one
 //! token never blocks the rest. Never deploy to mainnet.
 
 #[cfg(test)]
@@ -9,7 +10,7 @@ mod test;
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, token,
-    vec, Address, Env, Vec,
+    vec, Address, BytesN, Env, Vec,
 };
 
 /// ~30 days of ledgers; extended when under ~29 days.
@@ -83,8 +84,7 @@ impl Faucet {
         let mut sent = vec![&env];
         for (t, drip) in Self::drips(env.clone()).iter() {
             let tok = token::Client::new(&env, &t);
-            if tok.balance(&me) >= drip {
-                tok.transfer(&me, &to, &drip);
+            if tok.balance(&me) >= drip && tok.try_transfer(&me, &to, &drip).is_ok() {
                 sent.push_back((t, drip));
             }
         }
@@ -96,6 +96,12 @@ impl Faucet {
         env.events()
             .publish((symbol_short!("claim"), to), sent.clone());
         sent
+    }
+
+    /// Replace the contract code. Admin only.
+    pub fn upgrade(env: Env, wasm_hash: BytesN<32>) {
+        Self::admin(env.clone()).require_auth();
+        env.deployer().update_current_contract_wasm(wasm_hash);
     }
 
     /// Seconds until `who` may claim again; 0 if now.
