@@ -16,6 +16,7 @@ members = [
     "contracts/queue",
     "contracts/aggregators/*",
     "contracts/test_token",
+    "contracts/faucet",
     "contracts/adapters/*",
     "contracts/mocks/*",
     "crates/*",

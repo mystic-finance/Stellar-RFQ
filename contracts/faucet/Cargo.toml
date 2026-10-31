@@ -1,0 +1,17 @@
+[package]
+name = "faucet"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Testnet faucet: hands out a fixed drip of pre-minted test tokens per claim. Not for production."
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
