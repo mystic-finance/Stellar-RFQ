@@ -35,14 +35,17 @@ and keeper: `GBH2FDJQSROZAOIWBCBAYPSPTXPV2TUQAIWF5IISC3DRWEV6Z24R3PN2`.
 
 ### Live facilities
 
-Four facilities over USDC are routable from the router. Every RWA is priced by
+Five facilities are routable from the router: four over Blend's testnet USDC
+and one over Circle USDC. Every RWA is priced by
 the push oracle:
 
 - **tCLO and ORWA** carry the live Centrifuge JAAA NAV, pushed by the keeper.
 - **The other tokens** carry stand-in NAVs that the admin pushed.
 
-Each USDC vault lends to real Blend v2 and/or DeFindex. Each facility has LP
-capital and its first sales on-chain.
+Each Blend-USDC vault lends to real Blend v2 and/or DeFindex. No Blend or
+DeFindex market takes Circle USDC on testnet, so the Circle facility lends to
+the testnet mock venue. Each facility has LP capital and its first sales
+on-chain.
 
 | Facility | Assets (bid / ask, bps/day · cap · redemption) | Lends idle cash to |
 |---|---|---|
@@ -50,10 +53,12 @@ capital and its first sales on-chain.
 | **Octarine Credit** `CCAFPOL6UJ4Y23SYROA5TABUPG6NN274W5C4Y254VJBJQLBZSP6ASYCX` | tCLO (8.00 / 4.00 · 50% · 30d rolling), tCREDIT (12.00 / 6.00 · 40% · 30d cycle) | Blend v2, DeFindex |
 | **Octarine Diversified** `CDXENRX2N7GWWEGNHNPIOVQMGAJUBHVSSLSWH742WRXWXLPXCJVV2HEY` | tTBILL (3.50 / 1.75 · 40%), tCLO (9.00 / 4.50 · 40%), tCREDIT (13.00 / 6.50 · 30%) | DeFindex |
 | **Octarine LP** (integration run) `CBZV6CC6T4X3P4YDKPTAOS4U4ZLKTWCPNNV6UMRAMZX64RFK4Q3Q3UWE` | ORWA (10.00 / 5.00 · 80% · 30d rolling) | Blend v2, DeFindex |
+| **Octarine Circle Treasury** (Circle USDC) `CASN7RP3HD4YGU62K4BLVMZJ5FUZDR72V2NTLF2LCZRPQKHO4BCL5LRO` | tTBILL (3.00 / 1.50 · 60% · 7d rolling), tMMF (1.50 / 0.50 · 60% · 1d rolling) | mock venue (testnet) |
 
 Vaults, venue adapters and queues for each are under `.facilities` in
 [`deployments/testnet.json`](../deployments/testnet.json).
-`sdk/scripts/deploy-facilities.ts` recreates the set.
+`sdk/scripts/deploy-facilities.ts` recreates the Blend-USDC set and
+`sdk/scripts/deploy-circle-facility.ts` the Circle one.
 
 ### Tokens
 
