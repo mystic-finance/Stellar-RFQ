@@ -68,6 +68,33 @@ Vaults, venue adapters and queues for each are under `.facilities` in
 | tCREDIT (testnet private credit, 7 dp) | `CB7FNDMUYGPCY5KXBQMIVYX2TL3OYKG4WMTILKWJVVYHIY2Y3LS7NK3Q` |
 | OUSD, demo reference stable for settlement (7 dp) | `CBQ3EXUXCUKLUMNZRRF5SNYKPQPCTHXRSTA2WZIO7RLUBSZUV3SNMEIC` |
 
+### Faucet
+
+`contracts/faucet`, deployed 2026-10-31 at
+`CBJGPHWCKPRGV2MK6HGBRCLDJ7U6ZCO3W4IQYZYJSRC2PRUYWO7B64G4`, admin
+`GBH2FDJQSROZAOIWBCBAYPSPTXPV2TUQAIWF5IISC3DRWEV6Z24R3PN2`. Anyone can call
+`claim(to)` (signed by `to`) once per hour and receives 1,000 of each token
+below from the faucet's own stock. A token whose stock is below its drip is
+skipped. Each token was stocked with 1,000,000. Circle USDC is not included:
+get it from `faucet.circle.com`.
+
+| Token | Address | Drip |
+|---|---|---|
+| mUSDC | `CBHHOLNFBQSZ7TJ4TE3UFF43HJ4XSBLU6AXDIC5K73Z4TZUQSUCNA7PC` | 1,000 |
+| mRWA | `CCVU3HJIL4EZ2C3RT5ICQ7LAZ3IIF3TRKYBW72HD7JINH2IUD2PDRDD7` | 1,000 |
+| mXLM | `CBOOCLAKDO4J3EDXLVZJ3EKSCIKGQ5NFYOEYNXPQTHSECTJWB26KA7M3` | 1,000 |
+| tTBILL | `CDVPXGVQYKZ2JLYIG5RCTTOXUEOBPQAILZYUVNPBVBMC4DYZCCNFI5IR` | 1,000 |
+| tMMF | `CD3LVKXRRCQ77ZJ4SVHKTEEU7KJN7GRDOSOGZSFJIENNHFVDT3G7QF6E` | 1,000 |
+| tCLO | `CA4LDL4JSACLUPHAILPN4C2SBJIXRLJ2IPMFEVH7QIZ4JJPY3HYLHO45` | 1,000 |
+| tCREDIT | `CB7FNDMUYGPCY5KXBQMIVYX2TL3OYKG4WMTILKWJVVYHIY2Y3LS7NK3Q` | 1,000 |
+| ORWA | `CBKP74OVRDQT2BA223L6JQTKM2UR55RASIUJ4TKS7JV24B6C4RB56NTO` | 1,000 |
+| OUSD | `CBQ3EXUXCUKLUMNZRRF5SNYKPQPCTHXRSTA2WZIO7RLUBSZUV3SNMEIC` | 1,000 |
+
+All are 7 dp; `.faucet` in `deployments/testnet.json` records the drip in raw
+units. To restock, the admin mints to the faucet address. `set_drip(token, 0)`
+removes a token. First claim:
+`a190676cd30edb41b1b311d2e5daa1b19bb756360ba2bc8f960acef43dd9e10c`.
+
 ### External protocols used (published by each project)
 
 | Protocol | Address |

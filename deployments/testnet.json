@@ -144,5 +144,66 @@
       "ctWasm": "8d6e898ef9b7268a4c589b935b380ee38f74efeeb68de3a554f93d9d0742f013",
       "accountWasm": "97f670519d37333b3ea2fb1a60f96d525367e172cf40bd737321ae6079f0478f"
     }
+  },
+  "faucet": {
+    "address": "CBJGPHWCKPRGV2MK6HGBRCLDJ7U6ZCO3W4IQYZYJSRC2PRUYWO7B64G4",
+    "admin": "GBH2FDJQSROZAOIWBCBAYPSPTXPV2TUQAIWF5IISC3DRWEV6Z24R3PN2",
+    "cooldown": 3600,
+    "tokens": [
+      {
+        "symbol": "mUSDC",
+        "address": "CBHHOLNFBQSZ7TJ4TE3UFF43HJ4XSBLU6AXDIC5K73Z4TZUQSUCNA7PC",
+        "decimals": 7,
+        "drip": "10000000000"
+      },
+      {
+        "symbol": "mRWA",
+        "address": "CCVU3HJIL4EZ2C3RT5ICQ7LAZ3IIF3TRKYBW72HD7JINH2IUD2PDRDD7",
+        "decimals": 7,
+        "drip": "10000000000"
+      },
+      {
+        "symbol": "mXLM",
+        "address": "CBOOCLAKDO4J3EDXLVZJ3EKSCIKGQ5NFYOEYNXPQTHSECTJWB26KA7M3",
+        "decimals": 7,
+        "drip": "10000000000"
+      },
+      {
+        "symbol": "tTBILL",
+        "address": "CDVPXGVQYKZ2JLYIG5RCTTOXUEOBPQAILZYUVNPBVBMC4DYZCCNFI5IR",
+        "decimals": 7,
+        "drip": "10000000000"
+      },
+      {
+        "symbol": "tMMF",
+        "address": "CD3LVKXRRCQ77ZJ4SVHKTEEU7KJN7GRDOSOGZSFJIENNHFVDT3G7QF6E",
+        "decimals": 7,
+        "drip": "10000000000"
+      },
+      {
+        "symbol": "tCLO",
+        "address": "CA4LDL4JSACLUPHAILPN4C2SBJIXRLJ2IPMFEVH7QIZ4JJPY3HYLHO45",
+        "decimals": 7,
+        "drip": "10000000000"
+      },
+      {
+        "symbol": "tCREDIT",
+        "address": "CB7FNDMUYGPCY5KXBQMIVYX2TL3OYKG4WMTILKWJVVYHIY2Y3LS7NK3Q",
+        "decimals": 7,
+        "drip": "10000000000"
+      },
+      {
+        "symbol": "ORWA",
+        "address": "CBKP74OVRDQT2BA223L6JQTKM2UR55RASIUJ4TKS7JV24B6C4RB56NTO",
+        "decimals": 7,
+        "drip": "10000000000"
+      },
+      {
+        "symbol": "OUSD",
+        "address": "CBQ3EXUXCUKLUMNZRRF5SNYKPQPCTHXRSTA2WZIO7RLUBSZUV3SNMEIC",
+        "decimals": 7,
+        "drip": "10000000000"
+      }
+    ]
   }
 }
