@@ -1,0 +1,25 @@
+[package]
+name = "facility_aggregator"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Octarine facility aggregator: vault factory, registry and router-facing bid source"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+common = { path = "../../../crates/common" }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+mock_venue = { path = "../../mocks/mock_venue" }
+mock_oracle = { path = "../../mocks/mock_oracle" }
+vault = { path = "../../vault" }
+facility = { path = "../../facility" }
+withdrawal_queue = { path = "../../queue" }
+rfq = { path = "../../rfq" }
+router = { path = "../../router" }

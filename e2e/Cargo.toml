@@ -1,0 +1,19 @@
+[package]
+name = "e2e"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Forked-state tests: cctp_settle and lz_settle against the real testnet CCTP V2 and LayerZero V2 contracts"
+publish = false
+
+# Its own workspace: the deployed contracts need a newer soroban host than the
+# contracts' soroban-sdk 22.
+[workspace]
+
+[dependencies]
+
+[dev-dependencies]
+soroban-sdk = { version = "=29.0.1", features = ["testutils", "hazmat-address"] }
+ed25519-dalek = "2"
+k256 = { version = "0.13", features = ["ecdsa"] }
+serde_json = "1"

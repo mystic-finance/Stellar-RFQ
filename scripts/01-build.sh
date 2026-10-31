@@ -4,9 +4,11 @@ source "$(dirname "$0")/lib.sh"
 require_cmd stellar "Install: cargo install --locked stellar-cli"
 
 log "Building contract WASM (wasm32v1-none, release)"
-( cd "$ROOT_DIR" && stellar contract build )
+build_wasm
 
-for name in rfq router oracle; do
+for name in rfq router feed_oracle push_oracle redemption_vault claim_token redemption_account call_verifier lz_settle cctp_settle verifier vault facility withdrawal_queue facility_aggregator dex_aggregator \
+            soroswap_adapter aquarius_adapter sep56_adapter blend_adapter defindex_adapter \
+            mock_venue mock_dex mock_oracle; do
   RAW="$WASM_RELEASE/$name.wasm"
   [ -f "$RAW" ] || die "expected $RAW not found"
   stellar contract optimize --wasm "$RAW"

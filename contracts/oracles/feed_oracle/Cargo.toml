@@ -1,0 +1,18 @@
+[package]
+name = "feed_oracle"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "SEP-40 price adapter feeding the Octarine RFQ settlement contract"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+common = { path = "../../../crates/common" }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }

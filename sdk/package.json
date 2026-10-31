@@ -1,0 +1,42 @@
+{
+  "name": "@octarine/stellar-sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for Octarine on Stellar: RFQ settlement, router, facilities, vaults, aggregators and the push oracle",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "gen": "./scripts/gen.sh && node scripts/sync.mjs",
+    "sync": "node scripts/sync.mjs",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts",
+    "test:testnet": "tsx test/testnet.ts"
+  },
+  "dependencies": {
+    "buffer": "^6.0.3"
+  },
+  "devDependencies": {
+    "@stellar/stellar-sdk": "^17.2.1",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "socket.io-client": "^4.8.4"
+  },
+  "peerDependencies": {
+    "@stellar/stellar-sdk": ">=17.0.0",
+    "socket.io-client": "^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "socket.io-client": {
+      "optional": true
+    }
+  }
+}

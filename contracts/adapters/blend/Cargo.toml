@@ -1,0 +1,18 @@
+[package]
+name = "blend_adapter"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "VenueAdapter over a Blend v2 lending pool (supply only)"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+common = { path = "../../../crates/common" }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }

@@ -1,43 +1,26 @@
-use soroban_sdk::{panic_with_error, symbol_short, vec, Address, Env, IntoVal, U256};
+use common::math::MathError;
+use soroban_sdk::{panic_with_error, symbol_short, vec, Address, Env, IntoVal};
 
 use crate::errors::Error;
 use crate::storage;
-use crate::types::{PriceData, PushedPrice, Schedule, ScheduleMode};
+use crate::types::{PriceData, PushedPrice, Schedule};
 
-pub const ONE: i128 = 1_000_000_000_000_000_000;
-pub const BPS: i128 = 10_000;
-/// Rates carry two decimal places, so every `*_bps_per_day` field counts
-/// hundredths of a basis point: 250 is 2.50 bps/day, 25 is 0.25. Fee and
-/// deviation fields are plain basis points and do not use this scale.
-pub const RATE_SCALE: i128 = 100;
-pub const DENOM: i128 = BPS * RATE_SCALE * 86_400;
-pub const MAX_SECONDS: u64 = 3650 * 86_400;
-
-fn mul_div_round(env: &Env, a: i128, b: i128, d: i128, ceil: bool) -> i128 {
-    if a < 0 || b < 0 || d <= 0 {
-        panic_with_error!(env, Error::InvalidAmount);
-    }
-    let den = U256::from_u128(env, d as u128);
-    let mut num = U256::from_u128(env, a as u128).mul(&U256::from_u128(env, b as u128));
-    if ceil {
-        num = num.add(&den).sub(&U256::from_u32(env, 1));
-    }
-    narrow(env, num.div(&den))
-}
-
-fn narrow(env: &Env, v: U256) -> i128 {
-    match v.to_u128() {
-        Some(v) if v <= i128::MAX as u128 => v as i128,
-        _ => panic_with_error!(env, Error::Overflow),
-    }
-}
+pub use common::math::{BPS, DENOM, ONE};
 
 pub fn mul_div(env: &Env, a: i128, b: i128, d: i128) -> i128 {
-    mul_div_round(env, a, b, d, false)
+    checked(env, common::math::mul_div(env, a, b, d))
 }
 
 pub fn mul_div_ceil(env: &Env, a: i128, b: i128, d: i128) -> i128 {
-    mul_div_round(env, a, b, d, true)
+    checked(env, common::math::mul_div_ceil(env, a, b, d))
+}
+
+fn checked(env: &Env, r: Result<i128, MathError>) -> i128 {
+    match r {
+        Ok(v) => v,
+        Err(MathError::Domain) => panic_with_error!(env, Error::InvalidAmount),
+        Err(MathError::Overflow) => panic_with_error!(env, Error::Overflow),
+    }
 }
 
 pub fn validate_schedule(env: &Env, s: &Schedule) {
@@ -47,37 +30,14 @@ pub fn validate_schedule(env: &Env, s: &Schedule) {
 }
 
 fn is_valid_schedule(env: &Env, s: &Schedule) -> bool {
-    if s.max_bps_per_day == 0 {
-        return false;
-    }
-    if s.mode == ScheduleMode::Rolling {
-        return in_horizon(s.rolling_seconds);
-    }
-    let now = env.ledger().timestamp();
-    in_horizon(s.cycle_seconds)
-        && s.next_redemption_at > 0
-        && s.next_redemption_at <= now + MAX_SECONDS
-}
-
-fn in_horizon(seconds: u32) -> bool {
-    seconds >= 1 && seconds as u64 <= MAX_SECONDS
+    common::schedule::is_valid(env.ledger().timestamp(), s)
 }
 
 pub fn seconds_for(env: &Env, s: &Schedule) -> u32 {
-    if s.mode == ScheduleMode::Rolling {
-        return s.rolling_seconds;
+    match common::schedule::seconds_for(env.ledger().timestamp(), s) {
+        Some(v) => v,
+        None => panic_with_error!(env, Error::InvalidSchedule),
     }
-    let now = env.ledger().timestamp();
-    let cycle = s.cycle_seconds as u64;
-    let mut anchor = s.next_redemption_at;
-    if now >= anchor {
-        anchor += ((now - anchor) / cycle + 1) * cycle;
-    }
-    let remaining = anchor - now;
-    if remaining > MAX_SECONDS {
-        panic_with_error!(env, Error::InvalidSchedule);
-    }
-    remaining as u32
 }
 
 pub fn seconds_to_redemption(env: &Env, asset: &Address) -> u32 {

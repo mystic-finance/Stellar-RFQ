@@ -1,0 +1,28 @@
+[package]
+name = "crosschain_settle"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Cross-chain RFQ fills between Stellar and other chains: one build per bridge, LayerZero (default) or CCTP V2"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[features]
+# Builds cctp_settle (CCTP messages and burns) in place of lz_settle (LayerZero and an OFT).
+cctp = []
+
+[dependencies]
+soroban-sdk = { workspace = true }
+orders = { path = "../../crates/orders" }
+common = { path = "../../crates/common" }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+ed25519-dalek = "2"
+rfq = { path = "../rfq" }
+redemption_vault = { path = "../redemption_vault" }
+mock_oracle = { path = "../mocks/mock_oracle" }
+verifier = { path = "../verifier" }

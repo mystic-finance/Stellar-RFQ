@@ -541,17 +541,17 @@ pub struct MockFeed;
 
 #[soroban_sdk::contractimpl]
 impl MockFeed {
-    pub fn set(env: Env, asset: oracle::Asset, price: i128, timestamp: u64) {
+    pub fn set(env: Env, asset: feed_oracle::Asset, price: i128, timestamp: u64) {
         env.storage().persistent().set(&asset, &(price, timestamp));
     }
     pub fn decimals(_env: Env) -> u32 {
         14
     }
-    pub fn lastprice(env: Env, asset: oracle::Asset) -> Option<oracle::PriceData> {
+    pub fn lastprice(env: Env, asset: feed_oracle::Asset) -> Option<feed_oracle::PriceData> {
         env.storage()
             .persistent()
-            .get::<oracle::Asset, (i128, u64)>(&asset)
-            .map(|(price, timestamp)| oracle::PriceData { price, timestamp })
+            .get::<feed_oracle::Asset, (i128, u64)>(&asset)
+            .map(|(price, timestamp)| feed_oracle::PriceData { price, timestamp })
     }
 }
 
@@ -562,19 +562,19 @@ fn registered_oracle_prices_the_fill_and_staleness_falls_back() {
 
     let feed = f.env.register(MockFeed, ());
     MockFeedClient::new(&f.env, &feed).set(
-        &oracle::Asset::Stellar(f.rwa.clone()),
+        &feed_oracle::Asset::Stellar(f.rwa.clone()),
         &(2 * 100_000_000_000_000),
         &now,
     );
-    let adapter = f.env.register(oracle::OctarineOracle, ());
-    oracle::OctarineOracleClient::new(&f.env, &adapter).initialize(
+    let adapter = f.env.register(feed_oracle::OctarineOracle, ());
+    feed_oracle::OctarineOracleClient::new(&f.env, &adapter).initialize(
         &f.admin,
-        &oracle::Config {
+        &feed_oracle::Config {
             source: feed.clone(),
             base: f.rwa.clone(),
             quote: f.usd.clone(),
-            base_asset: oracle::Asset::Stellar(f.rwa.clone()),
-            quote_asset: oracle::Asset::Stellar(f.rwa.clone()),
+            base_asset: feed_oracle::Asset::Stellar(f.rwa.clone()),
+            quote_asset: feed_oracle::Asset::Stellar(f.rwa.clone()),
             cross: false,
             base_decimals: 7,
             quote_decimals: 7,

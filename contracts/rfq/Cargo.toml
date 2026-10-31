@@ -12,6 +12,7 @@ doctest = false
 
 [dependencies]
 soroban-sdk = { workspace = true }
+common = { path = "../../crates/common" }
 orders = { path = "../../crates/orders" }
 
 [dev-dependencies]
@@ -19,4 +20,4 @@ soroban-sdk = { workspace = true, features = ["testutils"] }
 ed25519-dalek = "2"
 stellar-strkey = "0.0.13"
 test_token = { path = "../test_token" }
-oracle = { path = "../oracle" }
+feed_oracle = { path = "../oracles/feed_oracle" }

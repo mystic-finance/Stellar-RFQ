@@ -1,7 +1,7 @@
 NETWORK ?= testnet
 export NETWORK
 
-.PHONY: all build test lint complexity wasm fmt clean setup deploy seed-demo oracle fill-demo e2e mint fund
+.PHONY: all build test ts-test coverage testnet-e2e lint complexity wasm fmt clean setup deploy seed-demo oracle fill-demo e2e mint fund
 
 all: build test lint
 
@@ -9,18 +9,38 @@ all: build test lint
 build:
 	cargo build
 
-## Run the contract unit-test suite.
+## Run the contract unit-test suite. Builds the WASM first: the facility
+## aggregator's tests deploy real vault and venue code through its factory.
+## crosschain_settle runs twice: as lz_settle (default) and as cctp_settle.
 test:
+	stellar contract build
 	cargo test --workspace
+	cargo test -p crosschain_settle --features cctp
+
+## SDK and keeper unit tests (offline).
+ts-test:
+	cd sdk && npm test
+	cd keeper && npm test
+
+## Line coverage of the contracts, excluding tests and mocks.
+coverage:
+	stellar contract build
+	cargo llvm-cov --workspace --summary-only --ignore-filename-regex '(test|invariant|mock_|test_token|types\.rs)'
+
+## End to end on testnet against Soroswap, Aquarius, Blend v2, DeFindex and the push oracle.
+testnet-e2e:
+	cd sdk && ADMIN_SECRET=$$(stellar keys show rfq-admin) MAKER_SECRET=$$(stellar keys show rfq-maker) \
+	  TAKER_SECRET=$$(stellar keys show rfq-taker) npm run test:testnet
 
 ## Clippy, with the complexity gate from clippy.toml, warnings as errors.
 lint:
 	cargo clippy --workspace --all-targets -- -W clippy::cognitive_complexity -D warnings
+	cargo clippy -p crosschain_settle --features cctp --all-targets -- -W clippy::cognitive_complexity -D warnings
 
 ## Cyclomatic complexity per function (needs `pip install lizard`).
 ##   Thresholds: <=5 fine, 6-10 watch, 11-15 refactor, 15+ split.
 complexity:
-	lizard contracts/*/src crates/*/src -l rust --CCN 11 -w
+	lizard contracts crates -l rust --CCN 11 -w -x "*/test*" -x "*/invariant*" -x "*/mocks/*"
 
 ## Build the on-chain WASM and optimise it.
 wasm:
