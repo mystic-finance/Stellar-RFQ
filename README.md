@@ -510,6 +510,11 @@ make test       # builds the wasm, then every contract's tests
 make wasm       # build + optimise the on-chain WASMs
 ```
 
+The [offline Blend regression](integration-tests/blend/README.md) builds the
+current RFQ/feed adapter and checks settlement and Dutch decay against a
+committed testnet capture. Its pool oracle returns fixed prices with a current
+timestamp, so this fixture cannot establish stale-feed rejection.
+
 ## Deploy
 
 ```bash
