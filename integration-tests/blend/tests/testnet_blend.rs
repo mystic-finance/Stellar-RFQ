@@ -9,12 +9,12 @@ use kanatoko::{testnet, ScenarioFork};
 
 mod rfq {
     use super::soroban_sdk;
-    soroban_sdk::contractimport!(file = "wasm/rfq.wasm");
+    soroban_sdk::contractimport!(file = "target/wasm32v1-none/release/rfq.wasm");
 }
 
 mod feed {
     use super::soroban_sdk;
-    soroban_sdk::contractimport!(file = "wasm/feed_oracle.wasm");
+    soroban_sdk::contractimport!(file = "target/wasm32v1-none/release/feed_oracle.wasm");
 }
 
 const BLEND_POOL: &str = "CCEBVDYM32YNYCVNRXQKDFFPISJJCV557CDZEIRBEE4NCV4KHPQ44HGF";
@@ -25,15 +25,14 @@ const DAY: u64 = 86_400;
 const ONE: i128 = 10_000_000; // one XLM or USDC: both have 7 decimals
 const MAX_AGE: u64 = 900; // the feed age the upstream oracle script defaults to
 
-/// Replays the committed capture offline; `RECAPTURE_RPC=<url>` takes a new one.
+/// Replay the committed Blend testnet capture.
 #[test]
 fn rfq_settles_on_testnet_blend_prices() {
-    let runner = testnet().cache(CAPTURE);
-    let runner = match std::env::var("RECAPTURE_RPC") {
-        Ok(url) => runner.rpc_url(url).refresh(),
-        Err(_) => runner.offline(),
-    };
-    runner.run(scenario).expect("scenario runs on the capture");
+    testnet()
+        .cache(CAPTURE)
+        .offline()
+        .run(scenario)
+        .expect("scenario runs on the capture");
 }
 
 fn scenario(fork: &ScenarioFork<'_>) {
